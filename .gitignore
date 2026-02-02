@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Expo
+.expo/
+.expo-shared/
+web-build/
+
+# Metro / React Native
+*.orig
+*.rej
+*.jks
+*.keystore
+*.apk
+*.ipa
+*.app
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
+coverage/

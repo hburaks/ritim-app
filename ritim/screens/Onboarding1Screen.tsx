@@ -12,15 +12,21 @@ const GRADE_OPTIONS = ['7', '8'] as const;
 
 export function Onboarding1Screen() {
   const router = useRouter();
-  const { completed, hydrated, setGrade } = useOnboarding();
+  const { completed, hydrated, grade, setGrade } = useOnboarding();
   const [selectedGrade, setSelectedGrade] = useState<(typeof GRADE_OPTIONS)[number] | null>(
-    null
+    grade ?? null
   );
 
   const handleSelectGrade = (grade: (typeof GRADE_OPTIONS)[number]) => {
     setSelectedGrade(grade);
     setGrade(grade);
   };
+
+  useEffect(() => {
+    if (grade) {
+      setSelectedGrade(grade);
+    }
+  }, [grade]);
 
   useEffect(() => {
     if (!hydrated) {

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
+import { loadGrade, saveGrade } from '@/lib/storage/gradeStorage';
 import {
   loadOnboardingCompleted,
   saveOnboardingCompleted,
@@ -24,13 +25,16 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     let active = true;
-    loadOnboardingCompleted()
-      .then((loaded) => {
+    Promise.all([loadOnboardingCompleted(), loadGrade()])
+      .then(([loadedCompleted, loadedGrade]) => {
         if (!active) {
           return;
         }
-        if (loaded) {
+        if (loadedCompleted) {
           setCompleted(true);
+        }
+        if (loadedGrade) {
+          setGrade(loadedGrade);
         }
       })
       .catch((error) => {
@@ -53,6 +57,13 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
     saveOnboardingCompleted(completed);
   }, [completed, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+    saveGrade(grade);
+  }, [grade, hydrated]);
 
   const value = useMemo(
     () => ({

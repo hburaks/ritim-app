@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -7,7 +7,7 @@ import { Chip } from '@/components/Chip';
 import { TextLink } from '@/components/TextLink';
 import { colors, spacing } from '@/lib/theme/tokens';
 import { useOnboarding } from '@/state/onboarding';
-import { TopicMood, TopicSubject, useTopics } from '@/state/topics';
+import { TopicSubject, useTopics } from '@/state/topics';
 
 const FILTER_OPTIONS: { label: string; value: TopicSubject | 'ALL' }[] = [
   { label: 'Tümü', value: 'ALL' },
@@ -20,7 +20,7 @@ const FILTER_OPTIONS: { label: string; value: TopicSubject | 'ALL' }[] = [
 export function TopicsScreen() {
   const router = useRouter();
   const { grade } = useOnboarding();
-  const { topics, getMood, setMood } = useTopics();
+  const { topics, getMood, toggleMood } = useTopics();
   const [activeFilter, setActiveFilter] = useState<'ALL' | TopicSubject>('ALL');
 
   const filteredTopics = useMemo(() => {
@@ -62,25 +62,24 @@ export function TopicsScreen() {
         <View style={styles.list}>
           {filteredTopics.map((topic) => {
             const mood = getMood(topic.id);
-            const nextMood = getNextMood(mood);
             return (
-              <Pressable
-                key={topic.id}
-                accessibilityRole="button"
-                onPress={() => setMood(topic.id, nextMood)}
-                style={({ pressed }) => [
-                  styles.row,
-                  mood === 'HARD' ? styles.rowHard : null,
-                  pressed ? styles.rowPressed : null,
-                ]}
-              >
+              <View key={topic.id} style={[styles.row, mood === 'HARD' ? styles.rowHard : null]}>
                 <Text style={[styles.rowTitle, mood === 'GOOD' ? styles.rowTitleDone : null]}>
                   {topic.title}
                 </Text>
-                <Text style={[styles.moodBadge, moodBadgeStyle(mood)]}>
-                  {moodLabel(mood)}
-                </Text>
-              </Pressable>
+                <View style={styles.moodActions}>
+                  <Chip
+                    label="Zor"
+                    selected={mood === 'HARD'}
+                    onPress={() => toggleMood(topic.id, 'HARD')}
+                  />
+                  <Chip
+                    label="İyi"
+                    selected={mood === 'GOOD'}
+                    onPress={() => toggleMood(topic.id, 'GOOD')}
+                  />
+                </View>
+              </View>
             );
           })}
         </View>
@@ -143,9 +142,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.neutral300,
   },
-  rowPressed: {
-    opacity: 0.75,
-  },
   rowHard: {
     backgroundColor: colors.backgroundMuted,
     borderRadius: 12,
@@ -160,47 +156,12 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
     textDecorationColor: colors.neutral400,
   },
-  moodBadge: {
-    fontSize: 13,
-    fontWeight: '600',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: 999,
-    overflow: 'hidden',
+  moodActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
   },
   moodHint: {
     color: colors.textMuted,
     fontSize: 12,
   },
 });
-
-function getNextMood(current: TopicMood): TopicMood {
-  if (current === 'NONE') {
-    return 'HARD';
-  }
-  if (current === 'HARD') {
-    return 'GOOD';
-  }
-  return 'NONE';
-}
-
-function moodLabel(mood: TopicMood) {
-  switch (mood) {
-    case 'HARD':
-      return 'Zor';
-    case 'GOOD':
-      return 'İyi';
-    default:
-      return '—';
-  }
-}
-
-function moodBadgeStyle(mood: TopicMood) {
-  if (mood === 'HARD') {
-    return { backgroundColor: colors.accentDark, color: colors.surface };
-  }
-  if (mood === 'GOOD') {
-    return { backgroundColor: colors.chipBackground, color: colors.textPrimary };
-  }
-  return { backgroundColor: colors.neutral200, color: colors.textMuted };
-}

@@ -1,16 +1,10 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Stack } from 'expo-router';
 
 import { OnboardingProvider, useOnboarding } from '@/state/onboarding';
 import { RecordsProvider } from '@/state/records';
 import { TopicsProvider } from '@/state/topics';
-import { requestPermissionsIfNeeded } from '@/lib/notifications/ritimNotifications';
-
 export default function RootLayout() {
-  useEffect(() => {
-    requestPermissionsIfNeeded();
-  }, []);
-
   return (
     <OnboardingProvider>
       <RecordsProvider>

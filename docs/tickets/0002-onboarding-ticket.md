@@ -2,6 +2,8 @@ Bir sonraki iş:
 
 Onboarding akışını uygula.
 
+Durum: Uygulandı.
+
 1) Onboarding1Screen:
 - Metinleri docs/ux-faz1.md’ye birebir uygula.
 - Sınıf seçimi (7 / 8).
@@ -15,7 +17,11 @@ Onboarding akışını uygula.
 3) İlk günü doldurma:
 - Mevcut BottomSheet component’ini kullan.
 - Süre seçimi (default 45 dk).
+- Süre + / - ile 5 dk artar/azalır.
+- Süre preset chip’leri (20/30/45/60/90) korunur.
 - Tür seçimi (Konu / Soru / Karışık).
+- Tür “Soru” veya “Karışık” ise opsiyonel ders bazlı soru sayısı alanı görünür.
+- Ders bazlı soru sayısı alanında + / - ile 5’er artar/azalır.
 - Kaydet → sheet kapanır.
 
 4) Navigation:

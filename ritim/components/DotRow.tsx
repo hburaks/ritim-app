@@ -12,13 +12,19 @@ import { colors, spacing } from '@/lib/theme/tokens';
 
 type DotRowProps = {
   activeIndex?: number;
+  filled?: boolean[];
   onChange?: (index: number) => void;
   style?: StyleProp<ViewStyle>;
 };
 
 const DOT_COUNT = 7;
 
-export function DotRow({ activeIndex = 0, onChange, style }: DotRowProps) {
+export function DotRow({
+  activeIndex = 0,
+  filled,
+  onChange,
+  style,
+}: DotRowProps) {
   const scales = useRef(
     Array.from({ length: DOT_COUNT }, () => new Animated.Value(1))
   ).current;
@@ -48,6 +54,7 @@ export function DotRow({ activeIndex = 0, onChange, style }: DotRowProps) {
     <View style={[styles.row, style]}>
       {dots.map((_, index) => {
         const isActive = index === activeIndex;
+        const isFilled = filled ? Boolean(filled[index]) : isActive;
         return (
           <Pressable
             key={index}
@@ -58,7 +65,7 @@ export function DotRow({ activeIndex = 0, onChange, style }: DotRowProps) {
             <Animated.View
               style={[
                 styles.dot,
-                isActive ? styles.dotActive : styles.dotInactive,
+                isFilled ? styles.dotActive : styles.dotInactive,
                 { transform: [{ scale: scales[index] }] },
               ]}
             />

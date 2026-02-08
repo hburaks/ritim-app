@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { DayEntrySheet } from '@/components/DayEntrySheet';
 import { DotRow } from '@/components/DotRow';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { colors, spacing } from '@/lib/theme/tokens';
+import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { requestPermissionsIfNeeded, rescheduleAllBasedOnRecords } from '@/lib/notifications/ritimNotifications';
 import { useOnboarding } from '@/state/onboarding';
 import { DailyRecord, getTodayDateString, useRecords } from '@/state/records';
@@ -56,7 +56,9 @@ export function Onboarding2Screen() {
         <View style={styles.content}>
           <View style={styles.dotHeader}>
             <Text style={styles.dotTitle}>Bu hafta</Text>
-            <DotRow activeIndex={-1} />
+            <View style={styles.dotCapsule}>
+              <DotRow activeIndex={-1} />
+            </View>
           </View>
 
           <Text style={styles.description}>
@@ -107,13 +109,22 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   dotTitle: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '600',
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  dotCapsule: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: colors.capsule,
   },
   description: {
     color: colors.textSecondary,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

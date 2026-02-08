@@ -86,9 +86,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.textPrimary,
-    fontSize: 24,
-    fontWeight: '600',
-    lineHeight: 32,
+    fontSize: 22,
+    fontWeight: '700',
+    lineHeight: 30,
   },
   content: {
     gap: spacing.xl,
@@ -97,8 +97,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   subtitle: {
-    color: colors.textPrimary,
-    fontSize: 18,
+    color: colors.textStrong,
+    fontSize: 15,
     fontWeight: '600',
   },
   chipRow: {
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   },
   helper: {
     color: colors.textSecondary,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

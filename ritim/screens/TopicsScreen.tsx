@@ -4,7 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { Chip } from '@/components/Chip';
-import { TextLink } from '@/components/TextLink';
+import { IconButton } from '@/components/IconButton';
+import { SurfaceCard } from '@/components/SurfaceCard';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, spacing } from '@/lib/theme/tokens';
 import { useOnboarding } from '@/state/onboarding';
 import { TopicSubject, useTopics } from '@/state/topics';
@@ -38,7 +40,14 @@ export function TopicsScreen() {
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <Text style={styles.title}>Konular</Text>
-            <TextLink label="← Geri" onPress={() => router.back()} textStyle={styles.backLink} />
+            <IconButton accessibilityLabel="Geri" onPress={() => router.back()}>
+              <IconSymbol
+                name="chevron.right"
+                size={18}
+                color={colors.textSecondary}
+                style={styles.backIcon}
+              />
+            </IconButton>
           </View>
           {headerSubtitle ? <Text style={styles.subtitle}>{headerSubtitle}</Text> : null}
           <Text style={styles.description}>
@@ -59,11 +68,19 @@ export function TopicsScreen() {
           ))}
         </View>
 
-        <View style={styles.list}>
-          {filteredTopics.map((topic) => {
+        <SurfaceCard style={styles.listCard}>
+          {filteredTopics.map((topic, index) => {
             const mood = getMood(topic.id);
+            const isLast = index === filteredTopics.length - 1;
             return (
-              <View key={topic.id} style={[styles.row, mood === 'HARD' ? styles.rowHard : null]}>
+              <View
+                key={topic.id}
+                style={[
+                  styles.row,
+                  mood === 'HARD' ? styles.rowHard : null,
+                  isLast ? styles.rowLast : null,
+                ]}
+              >
                 <Text style={[styles.rowTitle, mood === 'GOOD' ? styles.rowTitleDone : null]}>
                   {topic.title}
                 </Text>
@@ -82,7 +99,7 @@ export function TopicsScreen() {
               </View>
             );
           })}
-        </View>
+        </SurfaceCard>
       </View>
     </SafeAreaView>
   );
@@ -109,28 +126,28 @@ const styles = StyleSheet.create({
   title: {
     color: colors.textPrimary,
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   subtitle: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 13,
+    fontWeight: '500',
   },
   description: {
     color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
-  backLink: {
-    color: colors.accentDark,
-    fontSize: 14,
-    fontWeight: '600',
+  backIcon: {
+    transform: [{ rotate: '180deg' }],
   },
   filters: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  list: {
+  listCard: {
+    padding: spacing.lg,
     gap: spacing.md,
   },
   row: {
@@ -140,16 +157,19 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.neutral300,
+    borderBottomColor: colors.border,
   },
   rowHard: {
     backgroundColor: colors.backgroundMuted,
     borderRadius: 12,
   },
+  rowLast: {
+    borderBottomWidth: 0,
+  },
   rowTitle: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '500',
+    color: colors.textStrong,
+    fontSize: 14,
+    fontWeight: '600',
   },
   rowTitleDone: {
     color: colors.textMuted,

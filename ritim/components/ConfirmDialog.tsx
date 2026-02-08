@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { SurfaceCard } from '@/components/SurfaceCard';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 
 type ConfirmDialogProps = {
@@ -33,7 +34,7 @@ export function ConfirmDialog({
       <Pressable style={StyleSheet.absoluteFill} onPress={onCancel}>
         <View style={styles.overlay} />
       </Pressable>
-      <View style={styles.card}>
+      <SurfaceCard style={styles.card}>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.message}>{message}</Text>
         <View style={styles.actions}>
@@ -58,7 +59,7 @@ export function ConfirmDialog({
             <Text style={styles.confirmText}>{confirmLabel}</Text>
           </Pressable>
         </View>
-      </View>
+      </SurfaceCard>
     </>
   );
 
@@ -93,15 +94,8 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '84%',
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
     padding: spacing.xl,
     gap: spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
   },
   title: {
     fontSize: 16,
@@ -125,7 +119,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.neutral300,
+    borderColor: colors.border,
     backgroundColor: colors.surface,
   },
   confirmButton: {
@@ -134,7 +128,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.accentDeep,
   },
   cancelText: {
     fontSize: 14,

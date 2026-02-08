@@ -1,20 +1,24 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  LayoutAnimation,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  UIManager,
+  View,
+} from 'react-native';
 
 import { BottomSheet } from '@/components/BottomSheet';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, spacing } from '@/lib/theme/tokens';
-import type { ActivityType, DailyRecord } from '@/state/records';
+import type { DailyRecord } from '@/state/records';
 
-const DURATION_OPTIONS = [20, 30, 60, 90, 120, 180] as const;
-const TYPE_OPTIONS: { label: string; value: ActivityType }[] = [
-  { label: 'Konu', value: 'KONU' },
-  { label: 'Soru', value: 'SORU' },
-  { label: 'Karışık', value: 'KARISIK' },
-];
-const SUBJECT_OPTIONS = ['Matematik', 'Türkçe', 'Fen', 'İnkılap', 'İngilizce'] as const;
+const DURATION_OPTIONS = [30, 60, 90, 120, 180] as const;
+const SUBJECT_OPTIONS = ['Matematik', 'Türkçe', 'Fen', 'İnkılap', 'İngilizce', 'Din'] as const;
 const MIN_DURATION = 5;
 const MAX_DURATION = 180;
 const DURATION_STEP = 5;
@@ -44,8 +48,14 @@ export function DayEntrySheet({
   initialValues,
 }: DayEntrySheetProps) {
   const [duration, setDuration] = useState(45);
-  const [entryType, setEntryType] = useState<ActivityType>('KONU');
+  const [hasQuestions, setHasQuestions] = useState(false);
   const [questionCounts, setQuestionCounts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!visible) {
@@ -53,7 +63,13 @@ export function DayEntrySheet({
     }
 
     setDuration(initialValues?.focusMinutes ?? 45);
-    setEntryType(initialValues?.activityType ?? 'KONU');
+    const initialHasQuestions = Boolean(
+      (initialValues?.activityType && initialValues.activityType !== 'KONU') ||
+        initialValues?.questionCount ||
+        (initialValues?.subjectBreakdown &&
+          Object.keys(initialValues.subjectBreakdown).length > 0)
+    );
+    setHasQuestions(initialHasQuestions);
 
     const initialBreakdown = initialValues?.subjectBreakdown ?? {};
     const nextCounts = Object.entries(initialBreakdown).reduce<Record<string, string>>(
@@ -68,7 +84,7 @@ export function DayEntrySheet({
     setQuestionCounts(nextCounts);
   }, [visible, initialValues]);
 
-  const showQuestionCounts = entryType !== 'KONU';
+  const showQuestionCounts = hasQuestions;
   const durationLabel = useMemo(() => `${duration} dk`, [duration]);
 
   const adjustDuration = (delta: number) => {
@@ -109,10 +125,15 @@ export function DayEntrySheet({
       {}
     );
     const total = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
+    const nextActivityType = hasQuestions
+      ? initialValues?.activityType === 'KARISIK'
+        ? 'KARISIK'
+        : 'SORU'
+      : 'KONU';
 
     onSave({
       focusMinutes: duration,
-      activityType: entryType,
+      activityType: nextActivityType,
       questionCount: showQuestionCounts && total > 0 ? total : undefined,
       subjectBreakdown: showQuestionCounts && Object.keys(breakdown).length ? breakdown : undefined,
     });
@@ -141,98 +162,109 @@ export function DayEntrySheet({
       headerRight={headerRight}
     >
       <View style={styles.sheetSection}>
-          <Text style={styles.sheetLabel}>Süre</Text>
-          <View style={styles.durationRow}>
-            <Pressable
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.durationButton,
-                pressed ? styles.durationButtonPressed : null,
-              ]}
-              onPress={() => adjustDuration(-DURATION_STEP)}
-            >
-              <Text style={styles.durationButtonText}>-</Text>
-            </Pressable>
-            <Text style={styles.durationValue}>{durationLabel}</Text>
-            <Pressable
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.durationButton,
-                pressed ? styles.durationButtonPressed : null,
-              ]}
-              onPress={() => adjustDuration(DURATION_STEP)}
-            >
-              <Text style={styles.durationButtonText}>+</Text>
-            </Pressable>
-          </View>
-          <View style={styles.chipRow}>
-            {DURATION_OPTIONS.map((option) => (
-              <Chip
-                key={option}
-                label={`${option} dk`}
-                selected={duration === option}
-                onPress={() => setDuration(option)}
-              />
-            ))}
-          </View>
+        <Text style={styles.sheetLabel}>Süre</Text>
+        <View style={styles.durationRow}>
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.durationButton,
+              pressed ? styles.durationButtonPressed : null,
+            ]}
+            onPress={() => adjustDuration(-DURATION_STEP)}
+          >
+            <Text style={styles.durationButtonText}>-</Text>
+          </Pressable>
+          <Text style={styles.durationValue}>{durationLabel}</Text>
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.durationButton,
+              pressed ? styles.durationButtonPressed : null,
+            ]}
+            onPress={() => adjustDuration(DURATION_STEP)}
+          >
+            <Text style={styles.durationButtonText}>+</Text>
+          </Pressable>
         </View>
+        <View style={styles.chipRow}>
+          {DURATION_OPTIONS.map((option) => (
+            <Chip
+              key={option}
+              label={`${option} dk`}
+              selected={duration === option}
+              onPress={() => setDuration(option)}
+            />
+          ))}
+        </View>
+      </View>
 
+      <View style={styles.sheetSection}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: hasQuestions }}
+          onPress={() => {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setHasQuestions((current) => !current);
+          }}
+          style={({ pressed }) => [
+            styles.questionToggle,
+            hasQuestions ? styles.questionToggleActive : null,
+            pressed ? styles.questionTogglePressed : null,
+          ]}
+        >
+          <Text
+            style={[
+              styles.questionToggleText,
+              hasQuestions ? styles.questionToggleTextActive : null,
+            ]}
+          >
+            Soru çözdüm
+          </Text>
+        </Pressable>
+      </View>
+
+      {showQuestionCounts ? (
         <View style={styles.sheetSection}>
-          <Text style={styles.sheetLabel}>Tür</Text>
-          <View style={styles.chipRow}>
-            {TYPE_OPTIONS.map((option) => (
-              <Chip
-                key={option.value}
-                label={option.label}
-                selected={entryType === option.value}
-                onPress={() => setEntryType(option.value)}
-              />
+          <Text style={styles.sheetLabel}>Soru Sayısı (opsiyonel)</Text>
+          <View style={styles.questionList}>
+            {SUBJECT_OPTIONS.map((subject) => (
+              <View key={subject} style={styles.questionRow}>
+                <Text style={styles.questionLabel}>{subject}</Text>
+                <View style={styles.questionStepper}>
+                  <Pressable
+                    accessibilityRole="button"
+                    style={({ pressed }) => [
+                      styles.stepperButton,
+                      pressed ? styles.stepperButtonPressed : null,
+                    ]}
+                    onPress={() => adjustQuestionCount(subject, -5)}
+                  >
+                    <Text style={styles.stepperButtonText}>-</Text>
+                  </Pressable>
+                  <TextInput
+                    value={questionCounts[subject] ?? ''}
+                    onChangeText={(value) => handleCountChange(subject, value)}
+                    keyboardType="number-pad"
+                    placeholder="—"
+                    placeholderTextColor={colors.textMuted}
+                    style={styles.questionInput}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    style={({ pressed }) => [
+                      styles.stepperButton,
+                      pressed ? styles.stepperButtonPressed : null,
+                    ]}
+                    onPress={() => adjustQuestionCount(subject, 5)}
+                  >
+                    <Text style={styles.stepperButtonText}>+</Text>
+                  </Pressable>
+                </View>
+              </View>
             ))}
           </View>
         </View>
-
-        {showQuestionCounts ? (
-          <View style={styles.sheetSection}>
-            <Text style={styles.sheetLabel}>Derslere soru sayısı (opsiyonel)</Text>
-            <View style={styles.questionList}>
-              {SUBJECT_OPTIONS.map((subject) => (
-                <View key={subject} style={styles.questionRow}>
-                  <Text style={styles.questionLabel}>{subject}</Text>
-                  <View style={styles.questionStepper}>
-                    <Pressable
-                      accessibilityRole="button"
-                      style={({ pressed }) => [
-                        styles.stepperButton,
-                        pressed ? styles.stepperButtonPressed : null,
-                      ]}
-                      onPress={() => adjustQuestionCount(subject, -5)}
-                    >
-                      <Text style={styles.stepperButtonText}>-</Text>
-                    </Pressable>
-                    <TextInput
-                      value={questionCounts[subject] ?? ''}
-                      onChangeText={(value) => handleCountChange(subject, value)}
-                      keyboardType="number-pad"
-                      placeholder="—"
-                      placeholderTextColor={colors.textMuted}
-                      style={styles.questionInput}
-                    />
-                    <Pressable
-                      accessibilityRole="button"
-                      style={({ pressed }) => [
-                        styles.stepperButton,
-                        pressed ? styles.stepperButtonPressed : null,
-                      ]}
-                      onPress={() => adjustQuestionCount(subject, 5)}
-                    >
-                      <Text style={styles.stepperButtonText}>+</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : null}
+      ) : null}
 
       <PrimaryButton label="Kaydet" onPress={handleSave} />
     </BottomSheet>
@@ -245,9 +277,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   sheetLabel: {
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
   chipRow: {
     flexDirection: 'row',
@@ -320,11 +353,35 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.neutral300,
+    borderColor: colors.border,
     paddingHorizontal: spacing.md,
     textAlign: 'center',
     color: colors.textPrimary,
     backgroundColor: colors.surface,
+  },
+  questionToggle: {
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  questionToggleActive: {
+    backgroundColor: colors.accentDeep,
+    borderColor: colors.accentDeep,
+  },
+  questionToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  questionToggleTextActive: {
+    color: colors.surface,
+  },
+  questionTogglePressed: {
+    opacity: 0.85,
   },
   deleteButton: {
     width: 32,

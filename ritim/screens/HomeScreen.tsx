@@ -6,9 +6,11 @@ import { useRouter } from 'expo-router';
 import { DayEntrySheet } from '@/components/DayEntrySheet';
 import { DotRow } from '@/components/DotRow';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { IconButton } from '@/components/IconButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { radius, spacing } from '@/lib/theme/tokens';
+import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { useOnboarding } from '@/state/onboarding';
 import {
   ActivityType,
@@ -89,16 +91,12 @@ export function HomeScreen() {
             <Text style={styles.title}>BUGÜN</Text>
             <Text style={styles.subtitle}>Ritmini gözden geçir</Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
+          <IconButton
+            accessibilityLabel="Ayarlar"
             onPress={() => router.push('/settings')}
-            style={({ pressed }) => [
-              styles.settingsButton,
-              pressed ? styles.settingsButtonPressed : null,
-            ]}
           >
-            <IconSymbol name="gearshape" size={18} color={palette.iconMuted} />
-          </Pressable>
+            <IconSymbol name="gearshape" size={18} color={colors.iconMuted} />
+          </IconButton>
         </View>
 
         <View style={styles.mainStack}>
@@ -111,10 +109,10 @@ export function HomeScreen() {
                 size={14}
                 gap={6}
                 pressablePadding={2}
-                activeColor={palette.ink}
-                inactiveColor={palette.dotInactive}
+                activeColor={colors.textPrimary}
+                inactiveColor={colors.dotInactive}
                 highlightIndex={todayIndex}
-                highlightColor={palette.dotHighlight}
+                highlightColor={colors.dotHighlight}
               />
             </View>
           </View>
@@ -127,7 +125,7 @@ export function HomeScreen() {
             style={styles.weekIllustration}
             resizeMode="contain"
           />
-          <View style={styles.focusCard}>
+          <SurfaceCard style={styles.focusCard}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>Bugün Odak Kaydı</Text>
             </View>
@@ -147,7 +145,7 @@ export function HomeScreen() {
               style={styles.cardButton}
               textStyle={styles.cardButtonText}
             />
-          </View>
+          </SurfaceCard>
         </View>
 
         <View style={styles.divider} />
@@ -165,7 +163,7 @@ export function HomeScreen() {
               <Text style={styles.navTitle}>Günler</Text>
               <Text style={styles.navSubtitle}>Geçmişini görüntüle</Text>
             </View>
-            <IconSymbol name="chevron.right" size={16} color={palette.iconMuted} />
+            <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -179,7 +177,7 @@ export function HomeScreen() {
               <Text style={styles.navTitle}>Konular</Text>
               <Text style={styles.navSubtitle}>Konu hissi işaretle</Text>
             </View>
-            <IconSymbol name="chevron.right" size={16} color={palette.iconMuted} />
+            <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
           </Pressable>
         </View>
       </ScrollView>
@@ -220,26 +218,10 @@ export function HomeScreen() {
   );
 }
 
-const palette = {
-  background: '#FFFFFF',
-  surface: '#FFFFFF',
-  ink: '#1A1A1A',
-  muted: '#6B7280',
-  mutedDark: '#374151',
-  border: '#E5E7EB',
-  dotInactive: '#E2E8F0',
-  dotHighlight: '#94A3B8',
-  capsule: '#F1F5F9',
-  card: '#F9FAFB',
-  navTitle: '#1F2937',
-  iconMuted: '#9CA3AF',
-  statusBadge: '#111827',
-} as const;
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: palette.background,
+    backgroundColor: colors.background,
   },
   container: {
     paddingHorizontal: spacing.xl,
@@ -252,26 +234,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  settingsButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  settingsButtonPressed: {
-    opacity: 0.7,
-  },
   title: {
-    color: palette.ink,
+    color: colors.textPrimary,
     fontSize: 22,
     fontWeight: '700',
   },
   subtitle: {
-    color: palette.muted,
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '500',
     marginTop: spacing.xs,
@@ -292,35 +261,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: radius.full,
-    backgroundColor: palette.capsule,
+    backgroundColor: colors.capsule,
   },
   sectionTitle: {
-    color: palette.muted,
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.6,
   },
   focusCard: {
     padding: spacing.xs,
-    borderRadius: 20,
-    backgroundColor: palette.card,
     gap: spacing.lg,
-    shadowColor: '#111827',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
   },
   cardHeader: {
     gap: spacing.xs,
   },
   cardTitle: {
-    color: palette.mutedDark,
+    color: colors.textStrong,
     fontSize: 13,
     fontWeight: '700',
   },
   cardValue: {
-    color: palette.muted,
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -335,34 +297,34 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.statusBadge,
+    backgroundColor: colors.statusBadge,
   },
   statusBadgeText: {
-    color: palette.surface,
+    color: colors.surface,
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 14,
   },
   statusText: {
-    color: palette.muted,
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '500',
   },
   cardButton: {
     marginTop: spacing.sm,
     borderRadius: radius.full,
-    backgroundColor: '#2F4F36',
+    backgroundColor: colors.accentDeep,
     height: 58,
     alignSelf: 'stretch',
   },
   cardButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: palette.surface,
+    color: colors.surface,
   },
   divider: {
     height: 1,
-    backgroundColor: palette.border,
+    backgroundColor: colors.border,
     marginHorizontal: spacing.md,
   },
   navSection: {
@@ -378,12 +340,12 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   navTitle: {
-    color: palette.navTitle,
+    color: colors.navTitle,
     fontSize: 15,
     fontWeight: '600',
   },
   navSubtitle: {
-    color: palette.muted,
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '500',
   },

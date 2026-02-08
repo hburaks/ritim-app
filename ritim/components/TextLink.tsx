@@ -52,11 +52,11 @@ export function TextLink({
 
 const styles = StyleSheet.create({
   text: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
   },
   textEnabled: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
   },
   textDisabled: {
     color: colors.neutral400,

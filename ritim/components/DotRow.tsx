@@ -33,10 +33,10 @@ export function DotRow({
   style,
   size = 12,
   gap = spacing.sm,
-  activeColor = colors.accent,
-  inactiveColor = colors.neutral300,
+  activeColor = colors.textPrimary,
+  inactiveColor = colors.dotInactive,
   highlightIndex,
-  highlightColor,
+  highlightColor = colors.dotHighlight,
   pressablePadding = spacing.xs,
 }: DotRowProps) {
   const scales = useRef(

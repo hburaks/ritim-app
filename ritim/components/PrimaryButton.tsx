@@ -57,9 +57,9 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   base: {
-    height: 56,
+    height: 58,
     paddingHorizontal: spacing.lg,
-    borderRadius: radius.lg,
+    borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -67,27 +67,27 @@ const styles = StyleSheet.create({
   },
   enabled: {
     backgroundColor: colors.accentDeep,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
+    shadowColor: '#111827',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    elevation: 2,
   },
   disabled: {
-    backgroundColor: colors.neutral400,
+    backgroundColor: colors.neutral300,
   },
   pressed: {
     opacity: 0.92,
     transform: [{ translateY: 1 }],
   },
   text: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
   },
   textEnabled: {
     color: colors.surface,
   },
   textDisabled: {
-    color: colors.textSecondary,
+    color: colors.textMuted,
   },
 });

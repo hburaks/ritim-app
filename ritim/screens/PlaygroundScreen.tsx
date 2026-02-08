@@ -6,8 +6,9 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { Chip } from '@/components/Chip';
 import { DotRow } from '@/components/DotRow';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { SurfaceCard } from '@/components/SurfaceCard';
 import { TextLink } from '@/components/TextLink';
-import { colors, radius, spacing } from '@/lib/theme/tokens';
+import { colors, spacing } from '@/lib/theme/tokens';
 
 const CHIP_OPTIONS = ['Tümü', 'Mat', 'Türk', 'Fen', 'İnk'];
 
@@ -81,7 +82,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionCard}>{children}</View>
+      <SurfaceCard style={styles.sectionCard}>{children}</SurfaceCard>
     </View>
   );
 }
@@ -96,7 +97,7 @@ const styles = StyleSheet.create({
     gap: spacing.xl,
   },
   title: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: '700',
     color: colors.textPrimary,
   },
@@ -104,20 +105,15 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   sectionCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
     padding: spacing.lg,
     gap: spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
   },
   row: {
     flexDirection: 'row',
@@ -134,8 +130,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sectionMeta: {
-    color: colors.textPrimary,
-    fontWeight: '500',
+    color: colors.textStrong,
+    fontWeight: '600',
   },
   sectionMetaMuted: {
     color: colors.textSecondary,

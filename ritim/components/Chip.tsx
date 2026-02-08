@@ -52,28 +52,25 @@ export function Chip({
 
 const styles = StyleSheet.create({
   base: {
-    height: 32,
+    height: 34,
     paddingHorizontal: spacing.md,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   selected: {
-    backgroundColor: colors.accent,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    backgroundColor: colors.accentDeep,
   },
   unselected: {
     backgroundColor: colors.chipBackground,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   pressed: {
     opacity: 0.85,
   },
   text: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   textSelected: {

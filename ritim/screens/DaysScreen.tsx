@@ -4,8 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { DotRow } from '@/components/DotRow';
-import { TextLink } from '@/components/TextLink';
-import { colors, spacing } from '@/lib/theme/tokens';
+import { IconButton } from '@/components/IconButton';
+import { SurfaceCard } from '@/components/SurfaceCard';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { getWeekDates, useRecords } from '@/state/records';
 
 const WEEK_OFFSETS = [0, 1, 2, 3] as const;
@@ -59,11 +61,14 @@ export function DaysScreen() {
       <View style={styles.container}>
         <View style={styles.headerRow}>
           <Text style={styles.title}>Günler</Text>
-          <TextLink
-            label="← Geri"
-            onPress={() => router.back()}
-            textStyle={styles.backLink}
-          />
+          <IconButton accessibilityLabel="Geri" onPress={() => router.back()}>
+            <IconSymbol
+              name="chevron.right"
+              size={18}
+              color={colors.textSecondary}
+              style={styles.backIcon}
+            />
+          </IconButton>
         </View>
 
         <View style={styles.weeksList}>
@@ -79,13 +84,16 @@ export function DaysScreen() {
                 accessibilityRole="button"
                 onPress={() => navigateToWeek(week.startDate)}
                 style={({ pressed }) => [
-                  styles.weekBlock,
                   pressed ? styles.weekBlockPressed : null,
                 ]}
               >
-                <Text style={styles.weekLabel}>{label}</Text>
-                <DotRow activeIndex={-1} filled={week.dots} />
-                <Text style={styles.weekSummary}>{summary}</Text>
+                <SurfaceCard style={styles.weekBlock}>
+                  <Text style={styles.weekLabel}>{label}</Text>
+                  <View style={styles.dotCapsule}>
+                    <DotRow activeIndex={-1} filled={week.dots} />
+                  </View>
+                  <Text style={styles.weekSummary}>{summary}</Text>
+                </SurfaceCard>
               </Pressable>
             );
           })}
@@ -118,27 +126,21 @@ const styles = StyleSheet.create({
   title: {
     color: colors.textPrimary,
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  backLink: {
-    color: colors.accentDark,
-    fontSize: 14,
-    fontWeight: '600',
+  backIcon: {
+    transform: [{ rotate: '180deg' }],
   },
   weeksList: {
     gap: spacing.lg,
   },
   weekBlock: {
     padding: spacing.lg,
-    borderRadius: 16,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.neutral300,
     gap: spacing.sm,
   },
   weekBlockPressed: {
@@ -146,12 +148,21 @@ const styles = StyleSheet.create({
   },
   weekLabel: {
     color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  dotCapsule: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: colors.capsule,
   },
   weekSummary: {
     color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

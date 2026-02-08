@@ -7,8 +7,11 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DayEntrySheet } from '@/components/DayEntrySheet';
 import { DotRow } from '@/components/DotRow';
+import { IconButton } from '@/components/IconButton';
+import { SurfaceCard } from '@/components/SurfaceCard';
 import { TextLink } from '@/components/TextLink';
-import { colors, spacing } from '@/lib/theme/tokens';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { ActivityType, DailyRecord, getWeekDates, useRecords } from '@/state/records';
 
 const DAY_LABELS = ['Pzt', 'Sal', 'Car', 'Per', 'Cum', 'Cmt', 'Paz'] as const;
@@ -117,24 +120,30 @@ export function WeekScreen() {
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <Text style={styles.title}>Hafta</Text>
-            <TextLink
-              label="← Geri"
-              onPress={() => router.back()}
-              textStyle={styles.backLink}
-            />
+            <IconButton accessibilityLabel="Geri" onPress={() => router.back()}>
+              <IconSymbol
+                name="chevron.right"
+                size={18}
+                color={colors.textSecondary}
+                style={styles.backIcon}
+              />
+            </IconButton>
           </View>
           <Text style={styles.subtitle}>{weekLabel}</Text>
-          <DotRow activeIndex={-1} filled={weekDots} />
+          <View style={styles.dotCapsule}>
+            <DotRow activeIndex={-1} filled={weekDots} />
+          </View>
         </View>
 
-        <View style={styles.list}>
-          {rows.map((row) => (
+        <SurfaceCard style={styles.listCard}>
+          {rows.map((row, index) => (
             <Pressable
               key={row.date}
               accessibilityRole="button"
               onPress={() => handleRowPress(row.date)}
               style={({ pressed }) => [
                 styles.listRow,
+                index === rows.length - 1 ? styles.listRowLast : null,
                 pressed ? styles.listRowPressed : null,
               ]}
             >
@@ -144,7 +153,7 @@ export function WeekScreen() {
               </Text>
             </Pressable>
           ))}
-        </View>
+        </SurfaceCard>
       </View>
 
       <BottomSheet
@@ -164,9 +173,7 @@ export function WeekScreen() {
               ))}
             </View>
           ) : null}
-          <Pressable accessibilityRole="button" onPress={handleEdit}>
-            <Text style={styles.editLink}>Duzenle →</Text>
-          </Pressable>
+          <TextLink label="Duzenle →" onPress={handleEdit} textStyle={styles.editLink} />
         </View>
       </BottomSheet>
 
@@ -254,23 +261,30 @@ const styles = StyleSheet.create({
   title: {
     color: colors.textPrimary,
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  backLink: {
-    color: colors.accentDark,
-    fontSize: 14,
-    fontWeight: '600',
+  backIcon: {
+    transform: [{ rotate: '180deg' }],
   },
   subtitle: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '500',
   },
-  list: {
+  dotCapsule: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: colors.capsule,
+  },
+  listCard: {
+    padding: spacing.lg,
     gap: spacing.sm,
   },
   listRow: {
@@ -278,27 +292,32 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: colors.neutral300,
+    borderBottomColor: colors.border,
+  },
+  listRowLast: {
+    borderBottomWidth: 0,
   },
   listRowPressed: {
     opacity: 0.75,
   },
   rowLabel: {
-    color: colors.textPrimary,
-    fontSize: 15,
+    color: colors.textStrong,
+    fontSize: 14,
     fontWeight: '600',
   },
   rowValue: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '500',
   },
   detailContent: {
     gap: spacing.md,
   },
   detailSummary: {
-    color: colors.textPrimary,
-    fontSize: 16,
+    color: colors.textStrong,
+    fontSize: 15,
     fontWeight: '600',
   },
   breakdownList: {
@@ -309,7 +328,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   breakdownLabel: {
-    color: colors.textPrimary,
+    color: colors.textSecondary,
     fontSize: 14,
   },
   breakdownValue: {
@@ -318,8 +337,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   editLink: {
-    color: colors.accentDark,
-    fontSize: 14,
+    color: colors.textSecondary,
+    fontSize: 13,
     fontWeight: '600',
   },
 });

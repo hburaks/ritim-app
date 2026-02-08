@@ -13,6 +13,7 @@ import { colors, radius, spacing } from '@/lib/theme/tokens';
 type BottomSheetProps = {
   visible: boolean;
   onClose: () => void;
+  onCloseComplete?: () => void;
   title?: string;
   headerRight?: React.ReactNode;
   children?: React.ReactNode;
@@ -23,6 +24,7 @@ const SHEET_HEIGHT = 360;
 export function BottomSheet({
   visible,
   onClose,
+  onCloseComplete,
   title,
   headerRight,
   children,
@@ -73,10 +75,11 @@ export function BottomSheet({
       closeAnimation.start(({ finished }) => {
         if (finished) {
           setRendered(false);
+          onCloseComplete?.();
         }
       });
     }
-  }, [visible, rendered, openAnimation, closeAnimation]);
+  }, [visible, rendered, openAnimation, closeAnimation, onCloseComplete]);
 
   if (!rendered) {
     return null;

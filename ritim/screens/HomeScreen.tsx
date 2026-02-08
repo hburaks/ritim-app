@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -23,8 +23,8 @@ export function HomeScreen() {
   const { getRecordByDate, upsertRecord, removeRecord, getWeekDots } = useRecords();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
-  const [pendingDeleteDate, setPendingDeleteDate] = useState<string | null>(null);
-  const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDeleteRef = useRef<string | null>(null);
+  const openConfirmAfterCloseRef = useRef(false);
 
   const today = getTodayDateString();
   const todayRecord = getRecordByDate(today);
@@ -40,14 +40,6 @@ export function HomeScreen() {
       router.replace('/onboarding-1');
     }
   }, [completed, hydrated, router]);
-
-  useEffect(() => {
-    return () => {
-      if (deleteTimeoutRef.current) {
-        clearTimeout(deleteTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const todayStatus = useMemo(
     () =>
@@ -69,19 +61,29 @@ export function HomeScreen() {
   };
 
   const handleDeleteRequest = () => {
-    setSheetVisible(false);
-    setPendingDeleteDate(today);
-    if (deleteTimeoutRef.current) {
-      clearTimeout(deleteTimeoutRef.current);
+    if (!todayRecord) {
+      Alert.alert('Silinecek kayıt yok', 'Bugün için kayıt bulunamadı.');
+      return;
     }
-    deleteTimeoutRef.current = setTimeout(() => {
-      setConfirmVisible(true);
-    }, 240);
+    setSheetVisible(false);
+    pendingDeleteRef.current = todayRecord.date;
+    openConfirmAfterCloseRef.current = true;
+  };
+
+  const handleSheetCloseComplete = () => {
+    if (!openConfirmAfterCloseRef.current) {
+      return;
+    }
+    openConfirmAfterCloseRef.current = false;
+    setConfirmVisible(true);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.minimalHeader}>
           <View>
             <Text style={styles.title}>BUGÜN</Text>
@@ -99,43 +101,53 @@ export function HomeScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.statusBlock}>
-          <Text style={styles.sectionTitle}>HAFTALIK RİTİM</Text>
-          <View style={styles.dotCapsule}>
-            <DotRow
-              activeIndex={todayIndex}
-              filled={weekDots}
-              size={14}
-              gap={6}
-              pressablePadding={2}
-              activeColor={palette.ink}
-              inactiveColor={palette.dotInactive}
-              highlightIndex={todayIndex}
-              highlightColor={palette.dotHighlight}
+        <View style={styles.mainStack}>
+          <View style={styles.statusBlock}>
+            <Text style={styles.sectionTitle}>HAFTALIK RİTİM</Text>
+            <View style={styles.dotCapsule}>
+              <DotRow
+                activeIndex={todayIndex}
+                filled={weekDots}
+                size={14}
+                gap={6}
+                pressablePadding={2}
+                activeColor={palette.ink}
+                inactiveColor={palette.dotInactive}
+                highlightIndex={todayIndex}
+                highlightColor={palette.dotHighlight}
+              />
+            </View>
+          </View>
+          <Image
+            source={
+              todayRecord
+                ? require('@/assets/images/entry-exist-state-home-screen-illustration.png')
+                : require('@/assets/images/no-entry-state-home-screen-illustration.png')
+            }
+            style={styles.weekIllustration}
+            resizeMode="contain"
+          />
+          <View style={styles.focusCard}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Bugün Odak Kaydı</Text>
+            </View>
+            {todayRecord ? (
+              <View style={styles.cardStatusRow}>
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>✓</Text>
+                </View>
+                <Text style={styles.statusText}>{todayStatus}</Text>
+              </View>
+            ) : (
+              <Text style={styles.cardValue}>{todayStatus}</Text>
+            )}
+            <PrimaryButton
+              label={todayRecord ? 'KAYDI DÜZENLE' : 'BUGÜN ODAKLANDIM'}
+              onPress={() => setSheetVisible(true)}
+              style={styles.cardButton}
+              textStyle={styles.cardButtonText}
             />
           </View>
-        </View>
-
-        <View style={styles.focusCard}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Bugün Odak Kaydı</Text>
-          </View>
-          {todayRecord ? (
-            <View style={styles.cardStatusRow}>
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusBadgeText}>✓</Text>
-              </View>
-              <Text style={styles.statusText}>{todayStatus}</Text>
-            </View>
-          ) : (
-            <Text style={styles.cardValue}>{todayStatus}</Text>
-          )}
-          <PrimaryButton
-            label={todayRecord ? 'KAYDI DÜZENLE' : 'BUGÜN ODAKLANDIM'}
-            onPress={() => setSheetVisible(true)}
-            style={styles.cardButton}
-            textStyle={styles.cardButtonText}
-          />
         </View>
 
         <View style={styles.divider} />
@@ -170,11 +182,12 @@ export function HomeScreen() {
             <IconSymbol name="chevron.right" size={16} color={palette.iconMuted} />
           </Pressable>
         </View>
-      </View>
+      </ScrollView>
 
       <DayEntrySheet
         visible={sheetVisible}
         onClose={() => setSheetVisible(false)}
+        onCloseComplete={handleSheetCloseComplete}
         title={todayRecord ? 'Bugün' : 'Yeni kayıt'}
         onSave={handleSave}
         initialValues={todayRecord}
@@ -189,14 +202,18 @@ export function HomeScreen() {
         cancelLabel="Vazgeç"
         onCancel={() => {
           setConfirmVisible(false);
-          setPendingDeleteDate(null);
+          pendingDeleteRef.current = null;
+          openConfirmAfterCloseRef.current = false;
         }}
         onConfirm={() => {
-          if (pendingDeleteDate) {
-            removeRecord(pendingDeleteDate);
+          if (pendingDeleteRef.current) {
+            removeRecord(pendingDeleteRef.current);
+          } else {
+            Alert.alert('Silinecek kayıt yok', 'Bugün için kayıt bulunamadı.');
           }
           setConfirmVisible(false);
-          setPendingDeleteDate(null);
+          pendingDeleteRef.current = null;
+          openConfirmAfterCloseRef.current = false;
         }}
       />
     </SafeAreaView>
@@ -225,7 +242,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.background,
   },
   container: {
-    flex: 1,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
     paddingBottom: spacing.xxl,
@@ -260,9 +276,17 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: spacing.xs,
   },
+  mainStack: {
+    gap: spacing.xs,
+  },
   statusBlock: {
-    gap: 10,
+    gap: spacing.md,
     alignItems: 'center',
+  },
+  weekIllustration: {
+    width: '100%',
+    height: 300,
+    borderRadius: 18,
   },
   dotCapsule: {
     paddingHorizontal: spacing.lg,
@@ -277,7 +301,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   focusCard: {
-    padding: spacing.xl,
+    padding: spacing.xs,
     borderRadius: 20,
     backgroundColor: palette.card,
     gap: spacing.lg,
@@ -327,7 +351,7 @@ const styles = StyleSheet.create({
   cardButton: {
     marginTop: spacing.sm,
     borderRadius: radius.full,
-    backgroundColor: palette.ink,
+    backgroundColor: '#2F4F36',
     height: 58,
     alignSelf: 'stretch',
   },

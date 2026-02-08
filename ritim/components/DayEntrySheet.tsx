@@ -28,6 +28,7 @@ type DayEntrySheetProps = {
   visible: boolean;
   title: string;
   onClose: () => void;
+  onCloseComplete?: () => void;
   onSave: (values: DayEntryValues) => void;
   onDeletePress?: () => void;
   initialValues?: Partial<DayEntryValues>;
@@ -37,6 +38,7 @@ export function DayEntrySheet({
   visible,
   title,
   onClose,
+  onCloseComplete,
   onSave,
   onDeletePress,
   initialValues,
@@ -134,6 +136,7 @@ export function DayEntrySheet({
     <BottomSheet
       visible={visible}
       onClose={onClose}
+      onCloseComplete={onCloseComplete}
       title={title}
       headerRight={headerRight}
     >

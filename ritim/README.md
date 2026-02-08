@@ -48,3 +48,13 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+<!--
+Manual Test Checklist
+- Day rollover: keep app open past midnight or background/foreground; Home should show new day.
+- Type switch reset: toggle "Soru çözdüm" off/on; old question counts should clear.
+- Validation: try negative/invalid inputs; duration clamps, question counts never go below 0.
+- Delete flow: delete from Home and Week; sheets close and dots update.
+- Persistence: create/delete records, kill app, reopen; data should persist.
+- Infinite scroll: /days loads more weeks when scrolling down.
+-->

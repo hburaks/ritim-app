@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -8,53 +8,44 @@ import { IconButton } from '@/components/IconButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
-import { getWeekDates, useRecords } from '@/state/records';
+import { getWeekDates, parseDateKey, useRecords } from '@/state/records';
 
-const WEEK_OFFSETS = [0, 1, 2, 3] as const;
+const INITIAL_WEEK_COUNT = 6;
+const WEEK_PAGE_SIZE = 4;
 
 export function DaysScreen() {
   const router = useRouter();
-  const { getWeekDots, getRecordByDate } = useRecords();
+  const { getWeekDots, getRecordByDate, selectHasAnyRecords, todayKey } = useRecords();
+  const [weekCount, setWeekCount] = useState(INITIAL_WEEK_COUNT);
 
   const weeks = useMemo(() => {
-    return WEEK_OFFSETS.map((offset) => {
-      const reference = new Date();
-      reference.setDate(reference.getDate() - offset * 7);
+    const baseDate = parseDateKey(todayKey);
+    return Array.from({ length: weekCount }, (_, offset) => {
+      const reference = new Date(baseDate);
+      reference.setDate(baseDate.getDate() - offset * 7);
       const dates = getWeekDates(reference);
       const startDate = dates[0];
-      const endDate = dates[dates.length - 1];
       const dots = getWeekDots(startDate);
-      const { totalMinutes, totalQuestions, hasAny } = dates.reduce(
-        (acc, date) => {
-          const record = getRecordByDate(date);
-          if (!record) {
-            return acc;
-          }
-          const questionTotal = getQuestionTotal(record);
-          return {
-            totalMinutes: acc.totalMinutes + record.focusMinutes,
-            totalQuestions: acc.totalQuestions + questionTotal,
-            hasAny: true,
-          };
-        },
-        { totalMinutes: 0, totalQuestions: 0, hasAny: false }
-      );
+      const hasAny = dates.some((date) => Boolean(getRecordByDate(date)));
 
       return {
         offset,
         startDate,
-        endDate,
         dots,
-        totalMinutes,
-        totalQuestions,
         hasAny,
       };
     });
-  }, [getRecordByDate, getWeekDots]);
+  }, [getRecordByDate, getWeekDots, todayKey, weekCount]);
 
   const navigateToWeek = (weekStart: string) => {
     router.push({ pathname: '/week/[weekStart]', params: { weekStart } });
   };
+
+  const handleEndReached = useCallback(() => {
+    setWeekCount((current) => current + WEEK_PAGE_SIZE);
+  }, []);
+
+  const hasAnyRecords = selectHasAnyRecords();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -71,18 +62,26 @@ export function DaysScreen() {
           </IconButton>
         </View>
 
-        <View style={styles.weeksList}>
-          {weeks.map((week, index) => {
-            const label = index === 0 ? 'Bu hafta' : `-${week.offset} hafta`;
-            const summary = week.hasAny
-              ? `${week.totalMinutes} dk · ${week.totalQuestions} soru`
-              : '—';
-
+        <FlatList
+          data={weeks}
+          keyExtractor={(item) => item.startDate}
+          contentContainerStyle={styles.weeksList}
+          showsVerticalScrollIndicator={false}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.4}
+          ListHeaderComponent={
+            hasAnyRecords ? null : (
+              <Text style={styles.emptyText}>
+                Henüz kayıt yok. İlk kaydını eklemek için ana ekrana dön.
+              </Text>
+            )
+          }
+          renderItem={({ item, index }) => {
+            const label = index === 0 ? 'Bu hafta' : `-${item.offset} hafta`;
             return (
               <Pressable
-                key={week.startDate}
                 accessibilityRole="button"
-                onPress={() => navigateToWeek(week.startDate)}
+                onPress={() => navigateToWeek(item.startDate)}
                 style={({ pressed }) => [
                   pressed ? styles.weekBlockPressed : null,
                 ]}
@@ -90,27 +89,19 @@ export function DaysScreen() {
                 <SurfaceCard style={styles.weekBlock}>
                   <Text style={styles.weekLabel}>{label}</Text>
                   <View style={styles.dotCapsule}>
-                    <DotRow activeIndex={-1} filled={week.dots} />
+                    <DotRow activeIndex={-1} filled={item.dots} />
                   </View>
-                  <Text style={styles.weekSummary}>{summary}</Text>
+                  {item.hasAny ? null : (
+                    <Text style={styles.weekSummary}>—</Text>
+                  )}
                 </SurfaceCard>
               </Pressable>
             );
-          })}
-        </View>
+          }}
+        />
       </View>
     </SafeAreaView>
   );
-}
-
-function getQuestionTotal(record: { questionCount?: number; subjectBreakdown?: Record<string, number> }) {
-  if (record.questionCount !== undefined) {
-    return record.questionCount;
-  }
-  if (!record.subjectBreakdown) {
-    return 0;
-  }
-  return Object.values(record.subjectBreakdown).reduce((sum, value) => sum + value, 0);
 }
 
 const styles = StyleSheet.create({
@@ -164,5 +155,11 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '600',
+  },
+  emptyText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: spacing.md,
   },
 });

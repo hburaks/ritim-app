@@ -198,6 +198,9 @@ export function WeekScreen() {
             removeRecord(selectedDate);
           }
           setConfirmVisible(false);
+          setDetailVisible(false);
+          setEditVisible(false);
+          setSelectedDate(null);
         }}
       />
     </SafeAreaView>

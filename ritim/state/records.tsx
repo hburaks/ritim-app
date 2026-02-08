@@ -4,11 +4,12 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useReducer,
 } from 'react';
+import { AppState } from 'react-native';
 
-import { loadRecords, saveRecords } from '@/lib/storage/recordsStorage';
 import { rescheduleAllBasedOnRecords } from '@/lib/notifications/ritimNotifications';
+import { loadRecords, saveRecords } from '@/lib/storage/recordsStorage';
 
 export type ActivityType = 'KONU' | 'SORU' | 'KARISIK';
 
@@ -20,21 +21,87 @@ export type DailyRecord = {
   subjectBreakdown?: Record<string, number>;
 };
 
+type RecordsState = {
+  recordsByDate: Record<string, DailyRecord>;
+  todayKey: string;
+  hydrated: boolean;
+};
+
+type RecordsAction =
+  | { type: 'hydrate'; payload: Record<string, DailyRecord> }
+  | { type: 'upsert'; payload: DailyRecord }
+  | { type: 'remove'; payload: { date: string } }
+  | { type: 'set-today'; payload: string };
+
 type RecordsContextValue = {
   records: DailyRecord[];
+  recordsByDate: Record<string, DailyRecord>;
   upsertRecord: (record: DailyRecord) => void;
   removeRecord: (date: string) => void;
   getRecordByDate: (date: string) => DailyRecord | undefined;
-  hasRecordForDate: (date: string) => boolean;
+  selectTodayRecord: (dateKey?: string) => DailyRecord | undefined;
+  selectWeekDots: (weekStartKey?: string) => boolean[];
+  selectHasAnyRecords: () => boolean;
   getWeekDots: (weekStartDate?: Date | string) => boolean[];
+  todayKey: string;
+  refreshTodayKey: () => string;
   hydrated: boolean;
 };
 
 const RecordsContext = createContext<RecordsContextValue | undefined>(undefined);
 
+const INITIAL_STATE: RecordsState = {
+  recordsByDate: {},
+  todayKey: getDateKey(),
+  hydrated: false,
+};
+
+function recordsReducer(state: RecordsState, action: RecordsAction): RecordsState {
+  switch (action.type) {
+    case 'hydrate':
+      return {
+        ...state,
+        recordsByDate: action.payload,
+        hydrated: true,
+      };
+    case 'upsert': {
+      const record = action.payload;
+      return {
+        ...state,
+        recordsByDate: {
+          ...state.recordsByDate,
+          [record.date]: record,
+        },
+      };
+    }
+    case 'remove': {
+      const { date } = action.payload;
+      if (!state.recordsByDate[date]) {
+        return state;
+      }
+      const next = { ...state.recordsByDate };
+      delete next[date];
+      return {
+        ...state,
+        recordsByDate: next,
+      };
+    }
+    case 'set-today': {
+      if (action.payload === state.todayKey) {
+        return state;
+      }
+      return {
+        ...state,
+        todayKey: action.payload,
+      };
+    }
+    default:
+      return state;
+  }
+}
+
 export function RecordsProvider({ children }: { children: React.ReactNode }) {
-  const [records, setRecords] = useState<DailyRecord[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const [state, dispatch] = useReducer(recordsReducer, INITIAL_STATE);
 
   useEffect(() => {
     let active = true;
@@ -43,16 +110,12 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
         if (!active) {
           return;
         }
-        if (loaded.length) {
-          setRecords(loaded);
-        }
+        dispatch({ type: 'hydrate', payload: loaded });
       })
       .catch((error) => {
         console.warn('records hydrate failed', error);
-      })
-      .finally(() => {
         if (active) {
-          setHydrated(true);
+          dispatch({ type: 'hydrate', payload: {} });
         }
       });
 
@@ -61,84 +124,108 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const records = useMemo(() => {
+    return Object.values(state.recordsByDate).sort((a, b) => b.date.localeCompare(a.date));
+  }, [state.recordsByDate]);
+
   useEffect(() => {
-    if (!hydrated) {
+    if (!state.hydrated) {
       return;
     }
     const handle = setTimeout(() => {
-      saveRecords(records);
-    }, 300);
+      saveRecords(state.recordsByDate);
+    }, 400);
     return () => clearTimeout(handle);
-  }, [records, hydrated]);
+  }, [state.recordsByDate, state.hydrated]);
 
   useEffect(() => {
-    if (!hydrated) {
+    if (!state.hydrated) {
       return;
     }
     rescheduleAllBasedOnRecords(records);
-  }, [records, hydrated]);
+  }, [records, state.hydrated]);
+
+  const refreshTodayKey = useCallback(() => {
+    const nextKey = getDateKey();
+    dispatch({ type: 'set-today', payload: nextKey });
+    return nextKey;
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        refreshTodayKey();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [refreshTodayKey]);
 
   const upsertRecord = useCallback((record: DailyRecord) => {
-    setRecords((current) => {
-      const index = current.findIndex((item) => item.date === record.date);
-      if (index === -1) {
-        return [record, ...current];
-      }
-      const next = [...current];
-      next[index] = record;
-      return next;
-    });
+    dispatch({ type: 'upsert', payload: record });
   }, []);
 
   const removeRecord = useCallback((date: string) => {
-    setRecords((current) => current.filter((record) => record.date !== date));
+    dispatch({ type: 'remove', payload: { date } });
   }, []);
-
-  const recordMap = useMemo(() => {
-    return new Map(records.map((record) => [record.date, record]));
-  }, [records]);
 
   const getRecordByDate = useCallback(
     (date: string) => {
-      return recordMap.get(date);
+      return state.recordsByDate[date];
     },
-    [recordMap]
+    [state.recordsByDate]
   );
 
-  const hasRecordForDate = useCallback(
-    (date: string) => {
-      return recordMap.has(date);
+  const selectTodayRecord = useCallback(
+    (dateKey?: string) => {
+      const key = dateKey ?? state.todayKey;
+      return state.recordsByDate[key];
     },
-    [recordMap]
+    [state.recordsByDate, state.todayKey]
   );
 
-  const getWeekDots = useCallback(
-    (weekStartDate?: Date | string) => {
-      const startDate = resolveWeekStart(weekStartDate);
+  const selectWeekDots = useCallback(
+    (weekStartKey?: string) => {
+      const startDate = resolveWeekStart(weekStartKey ?? state.todayKey);
       const weekDates = getWeekDates(startDate);
-      return weekDates.map((date) => recordMap.has(date));
+      return weekDates.map((date) => Boolean(state.recordsByDate[date]));
     },
-    [recordMap]
+    [state.recordsByDate, state.todayKey]
   );
+
+  const selectHasAnyRecords = useCallback(() => {
+    return Object.keys(state.recordsByDate).length > 0;
+  }, [state.recordsByDate]);
 
   const value = useMemo(
     () => ({
       records,
+      recordsByDate: state.recordsByDate,
       upsertRecord,
       removeRecord,
       getRecordByDate,
-      hasRecordForDate,
-      getWeekDots,
-      hydrated,
+      selectTodayRecord,
+      selectWeekDots,
+      selectHasAnyRecords,
+      getWeekDots: selectWeekDots,
+      todayKey: state.todayKey,
+      refreshTodayKey,
+      hydrated: state.hydrated,
     }),
     [
       records,
+      state.recordsByDate,
       upsertRecord,
       removeRecord,
       getRecordByDate,
-      hasRecordForDate,
-      getWeekDots,
-      hydrated,
+      selectTodayRecord,
+      selectWeekDots,
+      selectHasAnyRecords,
+      state.todayKey,
+      refreshTodayKey,
+      state.hydrated,
     ]
   );
 
@@ -160,16 +247,36 @@ export function useRecordsHydration() {
   return hydrated;
 }
 
-export function getTodayDateString() {
-  return toDateString(new Date());
+export function getDateKey(date: Date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-export function getWeekDates(referenceDate = new Date()) {
-  const start = getStartOfWeek(referenceDate);
+export function getTodayKey() {
+  return getDateKey(new Date());
+}
+
+export function getTodayDateString() {
+  return getTodayKey();
+}
+
+export function parseDateKey(dateString: string) {
+  const [year, month, day] = dateString.split('-').map(Number);
+  const parsed = new Date(year, (month ?? 1) - 1, day ?? 1);
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+}
+
+export function getWeekDates(referenceDate: Date | string = new Date()) {
+  const resolved =
+    referenceDate instanceof Date ? referenceDate : parseDateKey(referenceDate);
+  const start = getStartOfWeek(resolved);
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
-    return toDateString(date);
+    return getDateKey(date);
   });
 }
 
@@ -180,15 +287,8 @@ function resolveWeekStart(weekStartDate?: Date | string) {
   if (weekStartDate instanceof Date) {
     return getStartOfWeek(weekStartDate);
   }
-  const parsed = parseDateString(weekStartDate);
+  const parsed = parseDateKey(weekStartDate);
   return getStartOfWeek(parsed);
-}
-
-function parseDateString(dateString: string) {
-  const [year, month, day] = dateString.split('-').map(Number);
-  const parsed = new Date(year, (month ?? 1) - 1, day ?? 1);
-  parsed.setHours(0, 0, 0, 0);
-  return parsed;
 }
 
 function getStartOfWeek(date: Date) {
@@ -198,11 +298,4 @@ function getStartOfWeek(date: Date) {
   start.setHours(0, 0, 0, 0);
   start.setDate(start.getDate() - diff);
   return start;
-}
-
-function toDateString(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }

@@ -32,6 +32,10 @@ export function TopicsScreen() {
     return topics.filter((topic) => topic.subject === activeFilter);
   }, [topics, activeFilter]);
 
+  const hasAnyMood = useMemo(() => {
+    return topics.some((topic) => getMood(topic.id) !== 'NONE');
+  }, [topics, getMood]);
+
   const headerSubtitle = grade ? `Sınıf: ${grade}` : undefined;
 
   return (
@@ -67,6 +71,12 @@ export function TopicsScreen() {
             />
           ))}
         </View>
+
+        {hasAnyMood ? null : (
+          <Text style={styles.emptyHint}>
+            İstersen konulara bir his işaretleyebilirsin.
+          </Text>
+        )}
 
         <SurfaceCard style={styles.listCard}>
           {filteredTopics.map((topic, index) => {
@@ -183,5 +193,10 @@ const styles = StyleSheet.create({
   moodHint: {
     color: colors.textMuted,
     fontSize: 12,
+  },
+  emptyHint: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

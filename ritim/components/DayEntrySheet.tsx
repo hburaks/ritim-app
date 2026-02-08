@@ -20,7 +20,7 @@ import type { DailyRecord } from '@/state/records';
 const DURATION_OPTIONS = [30, 60, 90, 120, 180] as const;
 const SUBJECT_OPTIONS = ['Matematik', 'Türkçe', 'Fen', 'İnkılap', 'İngilizce', 'Din'] as const;
 const MIN_DURATION = 5;
-const MAX_DURATION = 180;
+const MAX_DURATION = 600;
 const DURATION_STEP = 5;
 
 type DayEntryValues = Pick<
@@ -48,8 +48,11 @@ export function DayEntrySheet({
   initialValues,
 }: DayEntrySheetProps) {
   const [duration, setDuration] = useState(45);
-  const [hasQuestions, setHasQuestions] = useState(false);
+  const [didTopics, setDidTopics] = useState(true);
+  const [didQuestions, setDidQuestions] = useState(false);
   const [questionCounts, setQuestionCounts] = useState<Record<string, string>>({});
+  const [durationMessage, setDurationMessage] = useState<string | null>(null);
+  const [questionMessage, setQuestionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -62,14 +65,20 @@ export function DayEntrySheet({
       return;
     }
 
-    setDuration(initialValues?.focusMinutes ?? 45);
-    const initialHasQuestions = Boolean(
-      (initialValues?.activityType && initialValues.activityType !== 'KONU') ||
+    const initialDuration = clampDuration(initialValues?.focusMinutes ?? 45);
+    setDuration(initialDuration);
+    setDurationMessage(null);
+    const initialActivity = initialValues?.activityType;
+    const nextDidTopics = initialActivity === 'SORU' ? false : true;
+    const nextDidQuestions = Boolean(
+      initialActivity === 'SORU' ||
+        initialActivity === 'KARISIK' ||
         initialValues?.questionCount ||
         (initialValues?.subjectBreakdown &&
           Object.keys(initialValues.subjectBreakdown).length > 0)
     );
-    setHasQuestions(initialHasQuestions);
+    setDidTopics(nextDidTopics);
+    setDidQuestions(nextDidQuestions);
 
     const initialBreakdown = initialValues?.subjectBreakdown ?? {};
     const nextCounts = Object.entries(initialBreakdown).reduce<Record<string, string>>(
@@ -82,20 +91,34 @@ export function DayEntrySheet({
       {}
     );
     setQuestionCounts(nextCounts);
+    setQuestionMessage(null);
   }, [visible, initialValues]);
 
-  const showQuestionCounts = hasQuestions;
+  const showQuestionCounts = didQuestions;
   const durationLabel = useMemo(() => `${duration} dk`, [duration]);
 
   const adjustDuration = (delta: number) => {
     setDuration((current) => {
-      const next = Math.min(MAX_DURATION, Math.max(MIN_DURATION, current + delta));
+      const raw = current + delta;
+      const next = clampDuration(raw);
+      if (raw < MIN_DURATION) {
+        setDurationMessage(`0'dan küçük olamaz`);
+      } else if (raw > MAX_DURATION) {
+        setDurationMessage('Lütfen geçerli bir değer gir.');
+      } else {
+        setDurationMessage(null);
+      }
       return next;
     });
   };
 
   const handleCountChange = (subject: string, value: string) => {
     const sanitized = value.replace(/[^0-9]/g, '');
+    if (sanitized !== value) {
+      setQuestionMessage('Lütfen geçerli bir değer gir.');
+    } else {
+      setQuestionMessage(null);
+    }
     setQuestionCounts((current) => ({
       ...current,
       [subject]: sanitized,
@@ -111,9 +134,11 @@ export function DayEntrySheet({
         [subject]: nextValue === 0 ? '' : String(nextValue),
       };
     });
+    setQuestionMessage(null);
   };
 
   const handleSave = () => {
+    const safeDuration = clampDuration(duration);
     const breakdown = Object.entries(questionCounts).reduce<Record<string, number>>(
       (acc, [subject, value]) => {
         const count = Number(value);
@@ -125,16 +150,12 @@ export function DayEntrySheet({
       {}
     );
     const total = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
-    const nextActivityType = hasQuestions
-      ? initialValues?.activityType === 'KARISIK'
-        ? 'KARISIK'
-        : 'SORU'
-      : 'KONU';
+    const nextActivityType = didQuestions && didTopics ? 'KARISIK' : didQuestions ? 'SORU' : 'KONU';
 
     onSave({
-      focusMinutes: duration,
+      focusMinutes: safeDuration,
       activityType: nextActivityType,
-      questionCount: showQuestionCounts && total > 0 ? total : undefined,
+      questionCount: showQuestionCounts ? total : undefined,
       subjectBreakdown: showQuestionCounts && Object.keys(breakdown).length ? breakdown : undefined,
     });
   };
@@ -162,8 +183,8 @@ export function DayEntrySheet({
       headerRight={headerRight}
     >
       <View style={styles.sheetSection}>
-        <Text style={styles.sheetLabel}>Süre</Text>
-        <View style={styles.durationRow}>
+        <Text style={styles.sheetLabel}>SÜRE</Text>
+        <View style={styles.durationInlineRow}>
           <Pressable
             accessibilityRole="button"
             style={({ pressed }) => [
@@ -174,7 +195,7 @@ export function DayEntrySheet({
           >
             <Text style={styles.durationButtonText}>-</Text>
           </Pressable>
-          <Text style={styles.durationValue}>{durationLabel}</Text>
+          <Text style={styles.durationDisplay}>{durationLabel}</Text>
           <Pressable
             accessibilityRole="button"
             style={({ pressed }) => [
@@ -186,46 +207,95 @@ export function DayEntrySheet({
             <Text style={styles.durationButtonText}>+</Text>
           </Pressable>
         </View>
-        <View style={styles.chipRow}>
+        {durationMessage ? (
+          <Text style={styles.validationText}>{durationMessage}</Text>
+        ) : null}
+        <View style={styles.durationPresetRow}>
           {DURATION_OPTIONS.map((option) => (
             <Chip
               key={option}
               label={`${option} dk`}
               selected={duration === option}
-              onPress={() => setDuration(option)}
+              onPress={() => {
+                setDuration(clampDuration(option));
+                setDurationMessage(null);
+              }}
             />
           ))}
         </View>
       </View>
 
       <View style={styles.sheetSection}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ selected: hasQuestions }}
-          onPress={() => {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            setHasQuestions((current) => !current);
-          }}
-          style={({ pressed }) => [
-            styles.questionToggle,
-            hasQuestions ? styles.questionToggleActive : null,
-            pressed ? styles.questionTogglePressed : null,
-          ]}
-        >
-          <Text
-            style={[
-              styles.questionToggleText,
-              hasQuestions ? styles.questionToggleTextActive : null,
+        <Text style={styles.sheetLabel}>BUGÜN NE YAPTIN?</Text>
+        <View style={styles.activityToggleList}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: didTopics }}
+            onPress={() => {
+              setDidTopics((current) => !current);
+            }}
+            style={({ pressed }) => [
+              styles.activityToggle,
+              didTopics ? styles.activityToggleActive : null,
+              pressed ? styles.activityTogglePressed : null,
             ]}
           >
-            Soru çözdüm
-          </Text>
-        </Pressable>
+            <View
+              style={[
+                styles.activityCheckbox,
+                didTopics ? styles.activityCheckboxActive : null,
+              ]}
+            />
+            <Text
+              style={[
+                styles.activityToggleText,
+                didTopics ? styles.activityToggleTextActive : null,
+              ]}
+            >
+              Konu çalıştım
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: didQuestions }}
+            onPress={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setDidQuestions((current) => {
+                const next = !current;
+                if (!next) {
+                  setQuestionCounts({});
+                  setQuestionMessage(null);
+                }
+                return next;
+              });
+            }}
+            style={({ pressed }) => [
+              styles.activityToggle,
+              didQuestions ? styles.activityToggleActive : null,
+              pressed ? styles.activityTogglePressed : null,
+            ]}
+          >
+            <View
+              style={[
+                styles.activityCheckbox,
+                didQuestions ? styles.activityCheckboxActive : null,
+              ]}
+            />
+            <Text
+              style={[
+                styles.activityToggleText,
+                didQuestions ? styles.activityToggleTextActive : null,
+              ]}
+            >
+              Soru çözdüm
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {showQuestionCounts ? (
         <View style={styles.sheetSection}>
-          <Text style={styles.sheetLabel}>Soru Sayısı (opsiyonel)</Text>
+          <Text style={styles.sheetLabel}>SORU SAYISI</Text>
           <View style={styles.questionList}>
             {SUBJECT_OPTIONS.map((subject) => (
               <View key={subject} style={styles.questionRow}>
@@ -263,6 +333,9 @@ export function DayEntrySheet({
               </View>
             ))}
           </View>
+          {questionMessage ? (
+            <Text style={styles.validationText}>{questionMessage}</Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -282,20 +355,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.4,
   },
-  chipRow: {
+  durationInlineRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  durationDisplay: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  durationPresetRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  durationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
   durationButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.neutral200,
     alignItems: 'center',
     justifyContent: 'center',
@@ -304,13 +384,8 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
   durationButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  durationValue: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: colors.textPrimary,
   },
   questionList: {
@@ -359,29 +434,46 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     backgroundColor: colors.surface,
   },
-  questionToggle: {
-    height: 44,
-    borderRadius: 14,
+  activityToggleList: {
+    gap: spacing.sm,
+  },
+  activityToggle: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    height: 48,
+    borderRadius: 16,
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  questionToggleActive: {
-    backgroundColor: colors.accentDeep,
+  activityToggleActive: {
     borderColor: colors.accentDeep,
+    backgroundColor: colors.accentSoft,
   },
-  questionToggleText: {
+  activityTogglePressed: {
+    opacity: 0.85,
+  },
+  activityCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  activityCheckboxActive: {
+    borderColor: colors.accentDeep,
+    backgroundColor: colors.accentDeep,
+  },
+  activityToggleText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: colors.textPrimary,
   },
-  questionToggleTextActive: {
-    color: colors.surface,
-  },
-  questionTogglePressed: {
-    opacity: 0.85,
+  activityToggleTextActive: {
+    color: colors.textPrimary,
   },
   deleteButton: {
     width: 32,
@@ -394,4 +486,21 @@ const styles = StyleSheet.create({
   deleteButtonPressed: {
     opacity: 0.7,
   },
+  validationText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
 });
+
+function clampDuration(value: number) {
+  if (!Number.isFinite(value)) {
+    return MIN_DURATION;
+  }
+  if (value < MIN_DURATION) {
+    return MIN_DURATION;
+  }
+  if (value > MAX_DURATION) {
+    return MAX_DURATION;
+  }
+  return value;
+}

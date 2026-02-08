@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { DayEntrySheet } from '@/components/DayEntrySheet';
 import { DotRow } from '@/components/DotRow';
@@ -14,7 +15,6 @@ import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { useOnboarding } from '@/state/onboarding';
 import {
   ActivityType,
-  getTodayDateString,
   getWeekDates,
   useRecords,
 } from '@/state/records';
@@ -22,16 +22,23 @@ import {
 export function HomeScreen() {
   const router = useRouter();
   const { completed, hydrated } = useOnboarding();
-  const { getRecordByDate, upsertRecord, removeRecord, getWeekDots } = useRecords();
+  const {
+    selectTodayRecord,
+    selectWeekDots,
+    upsertRecord,
+    removeRecord,
+    todayKey,
+    refreshTodayKey,
+  } = useRecords();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
   const pendingDeleteRef = useRef<string | null>(null);
   const openConfirmAfterCloseRef = useRef(false);
 
-  const today = getTodayDateString();
-  const todayRecord = getRecordByDate(today);
-  const weekDots = useMemo(() => getWeekDots(), [getWeekDots]);
-  const weekDates = useMemo(() => getWeekDates(), [today]);
+  const today = todayKey;
+  const todayRecord = selectTodayRecord(todayKey);
+  const weekDots = useMemo(() => selectWeekDots(todayKey), [selectWeekDots, todayKey]);
+  const weekDates = useMemo(() => getWeekDates(todayKey), [todayKey]);
   const todayIndex = useMemo(() => weekDates.indexOf(today), [today, weekDates]);
 
   useEffect(() => {
@@ -42,6 +49,12 @@ export function HomeScreen() {
       router.replace('/onboarding-1');
     }
   }, [completed, hydrated, router]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshTodayKey();
+    }, [refreshTodayKey])
+  );
 
   const todayStatus = useMemo(
     () =>
@@ -186,7 +199,7 @@ export function HomeScreen() {
         visible={sheetVisible}
         onClose={() => setSheetVisible(false)}
         onCloseComplete={handleSheetCloseComplete}
-        title={todayRecord ? 'Bugün' : 'Yeni kayıt'}
+        title={todayRecord ? 'Bugün' : 'Odak Girişi'}
         onSave={handleSave}
         initialValues={todayRecord}
         onDeletePress={todayRecord ? handleDeleteRequest : undefined}

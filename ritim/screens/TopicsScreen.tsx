@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
@@ -7,110 +7,167 @@ import { Chip } from '@/components/Chip';
 import { IconButton } from '@/components/IconButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { colors, spacing } from '@/lib/theme/tokens';
-import { useOnboarding } from '@/state/onboarding';
-import { TopicSubject, useTopics } from '@/state/topics';
+import { colors, radius, spacing } from '@/lib/theme/tokens';
+import { TopicMood, TopicSubject, useTopics } from '@/state/topics';
 
-const FILTER_OPTIONS: { label: string; value: TopicSubject | 'ALL' }[] = [
-  { label: 'Tümü', value: 'ALL' },
+const FILTER_OPTIONS: { label: string; value: TopicSubject }[] = [
   { label: 'Mat', value: 'MAT' },
-  { label: 'Türk', value: 'TURK' },
+  { label: 'Türkçe', value: 'TURK' },
   { label: 'Fen', value: 'FEN' },
   { label: 'İnkılap', value: 'INK' },
+  { label: 'Din', value: 'DIN' },
 ];
+
+const SUBJECT_LABELS: Record<TopicSubject, string> = {
+  MAT: 'Matematik',
+  TURK: 'Türkçe',
+  FEN: 'Fen Bilimleri',
+  INK: 'İnkılap',
+  DIN: 'Din Kültürü',
+};
 
 export function TopicsScreen() {
   const router = useRouter();
-  const { grade } = useOnboarding();
-  const { topics, getMood, toggleMood } = useTopics();
-  const [activeFilter, setActiveFilter] = useState<'ALL' | TopicSubject>('ALL');
+  const { topics, getMood, setMood } = useTopics();
+  const [activeFilter, setActiveFilter] = useState<TopicSubject>('MAT');
 
   const filteredTopics = useMemo(() => {
-    if (activeFilter === 'ALL') {
-      return topics;
-    }
     return topics.filter((topic) => topic.subject === activeFilter);
   }, [topics, activeFilter]);
+
+  const listTitle = `${SUBJECT_LABELS[activeFilter]} Konuları`;
 
   const hasAnyMood = useMemo(() => {
     return topics.some((topic) => getMood(topic.id) !== 'NONE');
   }, [topics, getMood]);
 
-  const headerSubtitle = grade ? `Sınıf: ${grade}` : undefined;
+  const getNextMood = (current: TopicMood): TopicMood => {
+    if (current === 'NONE') return 'GOOD';
+    if (current === 'GOOD') return 'HARD';
+    return 'NONE';
+  };
+
+  const getMoodLabel = (mood: TopicMood) => {
+    if (mood === 'GOOD') return 'İyi';
+    if (mood === 'HARD') return 'Kötü';
+    return 'Orta';
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Konular</Text>
-            <IconButton accessibilityLabel="Geri" onPress={() => router.back()}>
-              <IconSymbol
-                name="chevron.right"
-                size={18}
-                color={colors.textSecondary}
-                style={styles.backIcon}
-              />
-            </IconButton>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.minimalHeader}>
+          <View>
+            <Text style={styles.title}>KONULAR</Text>
+            <Text style={styles.subtitle}>Konu hakkındaki hissini işaretle</Text>
           </View>
-          {headerSubtitle ? <Text style={styles.subtitle}>{headerSubtitle}</Text> : null}
-          <Text style={styles.description}>
-            Bu hisler sadece senin için. Nerelere daha fazla odaklanman gerektiğini
-            görmene yardımcı olur.
-          </Text>
-          <Text style={styles.moodHint}>Durumlar: Zor · İyi · —</Text>
+          <IconButton accessibilityLabel="Geri" onPress={() => router.back()}>
+            <IconSymbol
+              name="chevron.right"
+              size={18}
+              color={colors.textSecondary}
+              style={styles.backIcon}
+            />
+          </IconButton>
         </View>
 
-        <View style={styles.filters}>
-          {FILTER_OPTIONS.map((filter) => (
-            <Chip
-              key={filter.value}
-              label={filter.label}
-              selected={activeFilter === filter.value}
-              onPress={() => setActiveFilter(filter.value)}
-            />
-          ))}
+        <View style={styles.filterBlock}>
+          <Text style={styles.sectionTitle}>FİLTRE</Text>
+          <View style={styles.filterCapsule}>
+            {FILTER_OPTIONS.map((filter) => (
+              <Chip
+                key={filter.value}
+                label={filter.label}
+                selected={activeFilter === filter.value}
+                onPress={() => setActiveFilter(filter.value)}
+              />
+            ))}
+          </View>
         </View>
 
         {hasAnyMood ? null : (
-          <Text style={styles.emptyHint}>
-            İstersen konulara bir his işaretleyebilirsin.
-          </Text>
+          <SurfaceCard style={styles.emptyCard} variant="outlined">
+            <Text style={styles.emptyTitle}>Henüz bir his yok</Text>
+            <Text style={styles.emptyHint}>
+              İstersen konuların üstüne durum işaretleyerek ritmini
+              görünür hale getirebilirsin.
+            </Text>
+          </SurfaceCard>
         )}
 
         <SurfaceCard style={styles.listCard}>
-          {filteredTopics.map((topic, index) => {
-            const mood = getMood(topic.id);
-            const isLast = index === filteredTopics.length - 1;
-            return (
-              <View
-                key={topic.id}
-                style={[
-                  styles.row,
-                  mood === 'HARD' ? styles.rowHard : null,
-                  isLast ? styles.rowLast : null,
-                ]}
-              >
-                <Text style={[styles.rowTitle, mood === 'GOOD' ? styles.rowTitleDone : null]}>
-                  {topic.title}
-                </Text>
-                <View style={styles.moodActions}>
-                  <Chip
-                    label="Zor"
-                    selected={mood === 'HARD'}
-                    onPress={() => toggleMood(topic.id, 'HARD')}
-                  />
-                  <Chip
-                    label="İyi"
-                    selected={mood === 'GOOD'}
-                    onPress={() => toggleMood(topic.id, 'GOOD')}
-                  />
+          <View style={styles.listHeader}>
+            <View>
+              <Text style={styles.listTitle}>{listTitle}</Text>
+              <Text style={styles.listSubtitle}>
+                Toplam {filteredTopics.length} konu
+              </Text>
+            </View>
+          </View>
+          {filteredTopics.length === 0 ? (
+            <Text style={styles.emptyListText}>
+              Bu filtrede konu bulunamadı.
+            </Text>
+          ) : (
+            filteredTopics.map((topic) => {
+              const mood = getMood(topic.id);
+              return (
+                <View
+                  key={topic.id}
+                  style={[
+                    styles.rowBase,
+                  ]}
+                >
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowSubject}>
+                      {SUBJECT_LABELS[topic.subject]}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.rowTitle,
+                        mood === 'GOOD' ? styles.rowTitleGood : null,
+                        mood === 'NONE' ? styles.rowTitleMuted : null,
+                      ]}
+                    >
+                      {topic.title}
+                    </Text>
+                  </View>
+                  <View style={styles.moodActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Durumu değiştir: ${getMoodLabel(mood)}`}
+                      onPress={() =>
+                        setMood(topic.id, getNextMood(mood))
+                      }
+                      style={({ pressed }) => [
+                        styles.moodButton,
+                        mood === 'HARD' ? styles.moodButtonHard : null,
+                        mood === 'GOOD' ? styles.moodButtonGood : null,
+                        mood === 'NONE' ? styles.moodButtonNone : null,
+                        pressed ? styles.moodButtonPressed : null,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.moodButtonText,
+                          mood === 'HARD' ? styles.moodButtonTextHard : null,
+                          mood === 'GOOD' ? styles.moodButtonTextGood : null,
+                          mood === 'NONE' ? styles.moodButtonTextNone : null,
+                        ]}
+                      >
+                        {getMoodLabel(mood)}
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
-              </View>
-            );
-          })}
+              );
+            })
+          )}
         </SurfaceCard>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -121,14 +178,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   container: {
-    flex: 1,
-    padding: spacing.xl,
-    gap: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
+    gap: spacing.xl,
   },
-  header: {
-    gap: spacing.sm,
-  },
-  headerRow: {
+  minimalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -142,61 +197,143 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '500',
-  },
-  description: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
+    marginTop: spacing.xs,
   },
   backIcon: {
     transform: [{ rotate: '180deg' }],
   },
-  filters: {
+  sectionTitle: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  filterBlock: {
+    gap: spacing.sm,
+  },
+  filterCapsule: {
+    alignSelf: 'center',
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-  },
-  listCard: {
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderRadius: radius.full,
+    backgroundColor: colors.capsule,
+    justifyContent: 'center',
   },
-  rowHard: {
-    backgroundColor: colors.backgroundMuted,
-    borderRadius: 12,
-  },
-  rowLast: {
-    borderBottomWidth: 0,
-  },
-  rowTitle: {
-    color: colors.textStrong,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  rowTitleDone: {
-    color: colors.textMuted,
-    textDecorationLine: 'line-through',
-    textDecorationColor: colors.neutral400,
-  },
-  moodActions: {
-    flexDirection: 'row',
+  emptyCard: {
+    padding: spacing.lg,
     gap: spacing.xs,
   },
-  moodHint: {
-    color: colors.textMuted,
-    fontSize: 12,
+  emptyTitle: {
+    color: colors.textStrong,
+    fontSize: 15,
+    fontWeight: '700',
   },
   emptyHint: {
     color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
+  },
+  listCard: {
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  listHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  listTitle: {
+    color: colors.textStrong,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  listSubtitle: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: spacing.xs,
+  },
+  emptyListText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  rowBase: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  rowText: {
+    flex: 1,
+    gap: spacing.xs,
+    paddingRight: spacing.md,
+  },
+  rowSubject: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  rowTitle: {
+    color: colors.textStrong,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  rowTitleGood: {
+    color: colors.textMuted,
+    textDecorationLine: 'line-through',
+    textDecorationColor: colors.neutral400,
+  },
+  rowTitleMuted: {
+    color: colors.textMuted,
+  },
+  moodActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  moodButton: {
+    height: 34,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  moodButtonPressed: {
+    opacity: 0.85,
+  },
+  moodButtonHard: {
+    backgroundColor: colors.accentDeep,
+    borderColor: colors.accentDeep,
+  },
+  moodButtonGood: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.borderStrong,
+  },
+  moodButtonNone: {
+    backgroundColor: colors.chipBackground,
+    borderColor: colors.border,
+  },
+  moodButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  moodButtonTextHard: {
+    color: colors.surface,
+  },
+  moodButtonTextGood: {
+    color: colors.textSecondary,
+  },
+  moodButtonTextNone: {
+    color: colors.textSecondary,
   },
 });

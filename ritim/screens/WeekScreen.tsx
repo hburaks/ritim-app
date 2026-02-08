@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -12,16 +12,21 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { ActivityType, DailyRecord, getWeekDates, useRecords } from '@/state/records';
 
-const DAY_LABELS = ['Pzt', 'Sal', 'Car', 'Per', 'Cum', 'Cmt', 'Paz'] as const;
+const DAY_LABELS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'] as const;
 const DAY_LONG_LABELS = [
   'Pazartesi',
-  'Sali',
-  'Carsamba',
-  'Persembe',
+  'Salı',
+  'Çarşamba',
+  'Perşembe',
   'Cuma',
   'Cumartesi',
   'Pazar',
 ] as const;
+
+const MONTH_NAMES = [
+  'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
+  'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+];
 
 export function WeekScreen() {
   const router = useRouter();
@@ -30,7 +35,8 @@ export function WeekScreen() {
   const [editVisible, setEditVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [confirmVisible, setConfirmVisible] = useState(false);
-  const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingDeleteRef = useRef<string | null>(null);
+  const openConfirmAfterCloseRef = useRef(false);
 
   const weekStartDate = typeof weekStart === 'string' ? weekStart : undefined;
   const weekDates = useMemo(() => {
@@ -40,9 +46,11 @@ export function WeekScreen() {
   const weekDots = useMemo(() => getWeekDots(weekStartDate), [getWeekDots, weekStartDate]);
 
   const weekLabel = useMemo(() => {
-    const start = weekDates[0];
-    const end = weekDates[weekDates.length - 1];
-    return `${formatDateShort(start)} - ${formatDateShort(end)}`;
+    const start = parseDateString(weekDates[0]);
+    const end = parseDateString(weekDates[weekDates.length - 1]);
+    const startStr = `${start.getDate()} ${MONTH_NAMES[start.getMonth()]}`;
+    const endStr = `${end.getDate()} ${MONTH_NAMES[end.getMonth()]}`;
+    return `${startStr} – ${endStr}`;
   }, [weekDates]);
 
   const rows = useMemo(() => {
@@ -51,20 +59,28 @@ export function WeekScreen() {
       return {
         date,
         label: DAY_LABELS[index] ?? '',
+        longLabel: DAY_LONG_LABELS[index] ?? '',
+        dayNumber: parseDateString(date).getDate(),
         record,
       };
     });
   }, [getRecordByDate, weekDates]);
 
-  const selectedRecord = selectedDate ? getRecordByDate(selectedDate) : undefined;
-
-  useEffect(() => {
-    return () => {
-      if (deleteTimeoutRef.current) {
-        clearTimeout(deleteTimeoutRef.current);
+  const stats = useMemo(() => {
+    let totalMinutes = 0;
+    let totalQuestions = 0;
+    let filledCount = 0;
+    for (const row of rows) {
+      if (row.record) {
+        filledCount++;
+        totalMinutes += row.record.focusMinutes;
+        totalQuestions += getQuestionTotal(row.record);
       }
-    };
-  }, []);
+    }
+    return { totalMinutes, totalQuestions, filledCount };
+  }, [rows]);
+
+  const selectedRecord = selectedDate ? getRecordByDate(selectedDate) : undefined;
 
   const handleRowPress = (date: string) => {
     setSelectedDate(date);
@@ -92,58 +108,136 @@ export function WeekScreen() {
     if (!selectedDate) {
       return;
     }
+    pendingDeleteRef.current = selectedDate;
+    openConfirmAfterCloseRef.current = true;
     setEditVisible(false);
-    if (deleteTimeoutRef.current) {
-      clearTimeout(deleteTimeoutRef.current);
+  };
+
+  const handleSheetCloseComplete = () => {
+    if (!openConfirmAfterCloseRef.current) {
+      return;
     }
-    deleteTimeoutRef.current = setTimeout(() => {
-      setConfirmVisible(true);
-    }, 240);
+    openConfirmAfterCloseRef.current = false;
+    setConfirmVisible(true);
   };
 
   const detailTitle = selectedDate ? DAY_LONG_LABELS[getWeekdayIndex(selectedDate)] : '';
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Hafta</Text>
-            <IconButton accessibilityLabel="Geri" onPress={() => router.back()}>
-              <IconSymbol
-                name="chevron.right"
-                size={18}
-                color={colors.textSecondary}
-                style={styles.backIcon}
-              />
-            </IconButton>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.title}>HAFTA</Text>
+            <Text style={styles.subtitle}>{weekLabel}</Text>
           </View>
-          <Text style={styles.subtitle}>{weekLabel}</Text>
+          <IconButton accessibilityLabel="Geri" onPress={() => router.back()}>
+            <IconSymbol
+              name="chevron.left"
+              size={18}
+              color={colors.iconMuted}
+            />
+          </IconButton>
+        </View>
+
+        <View style={styles.dotSection}>
+          <Text style={styles.sectionLabel}>HAFTALIK RİTİM</Text>
           <View style={styles.dotCapsule}>
-            <DotRow activeIndex={-1} filled={weekDots} />
+            <DotRow
+              activeIndex={-1}
+              filled={weekDots}
+              size={14}
+              gap={6}
+              pressablePadding={2}
+              activeColor={colors.textPrimary}
+              inactiveColor={colors.dotInactive}
+            />
           </View>
         </View>
 
-        <SurfaceCard style={styles.listCard}>
-          {rows.map((row, index) => (
-            <Pressable
-              key={row.date}
-              accessibilityRole="button"
-              onPress={() => handleRowPress(row.date)}
-              style={({ pressed }) => [
-                styles.listRow,
-                index === rows.length - 1 ? styles.listRowLast : null,
-                pressed ? styles.listRowPressed : null,
-              ]}
-            >
-              <Text style={styles.rowLabel}>{row.label}</Text>
-              <Text style={styles.rowValue}>
-                {row.record ? formatSummary(row.record) : '—'}
-              </Text>
-            </Pressable>
-          ))}
-        </SurfaceCard>
-      </View>
+        {stats.filledCount > 0 && (
+          <View style={styles.statsRow}>
+            <SurfaceCard style={styles.statCard}>
+              <Text style={styles.statValue}>{stats.filledCount}/7</Text>
+              <Text style={styles.statLabel}>gün</Text>
+            </SurfaceCard>
+            <SurfaceCard style={styles.statCard}>
+              <Text style={styles.statValue}>{stats.totalMinutes}</Text>
+              <Text style={styles.statLabel}>dakika</Text>
+            </SurfaceCard>
+            {stats.totalQuestions > 0 && (
+              <SurfaceCard style={styles.statCard}>
+                <Text style={styles.statValue}>{stats.totalQuestions}</Text>
+                <Text style={styles.statLabel}>soru</Text>
+              </SurfaceCard>
+            )}
+          </View>
+        )}
+
+        <View style={styles.daysSection}>
+          <Text style={styles.sectionLabel}>GÜNLER</Text>
+          <View style={styles.daysList}>
+            {rows.map((row) => {
+              const hasRecord = Boolean(row.record);
+              return (
+                <Pressable
+                  key={row.date}
+                  accessibilityRole="button"
+                  onPress={() => handleRowPress(row.date)}
+                  style={({ pressed }) => [
+                    pressed ? styles.dayRowPressed : null,
+                  ]}
+                >
+                  <SurfaceCard
+                    style={styles.dayCard}
+                    variant={hasRecord ? 'default' : 'flat'}
+                  >
+                    <View style={styles.dayLeft}>
+                      <View
+                        style={[
+                          styles.dayIndicator,
+                          hasRecord
+                            ? styles.dayIndicatorFilled
+                            : styles.dayIndicatorEmpty,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.dayIndicatorText,
+                            hasRecord
+                              ? styles.dayIndicatorTextFilled
+                              : styles.dayIndicatorTextEmpty,
+                          ]}
+                        >
+                          {row.dayNumber}
+                        </Text>
+                      </View>
+                      <View style={styles.dayInfo}>
+                        <Text style={styles.dayLabel}>{row.longLabel}</Text>
+                        {row.record ? (
+                          <Text style={styles.daySummary}>
+                            {formatSummary(row.record)}
+                          </Text>
+                        ) : (
+                          <Text style={styles.dayEmpty}>Kayıt yok</Text>
+                        )}
+                      </View>
+                    </View>
+                    <IconSymbol
+                      name="chevron.right"
+                      size={13}
+                      color={colors.iconMuted}
+                    />
+                  </SurfaceCard>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </ScrollView>
 
       <DayEntrySheet
         visible={editVisible}
@@ -151,7 +245,8 @@ export function WeekScreen() {
           setEditVisible(false);
           setSelectedDate(null);
         }}
-        title={detailTitle || 'Gun'}
+        onCloseComplete={handleSheetCloseComplete}
+        title={detailTitle || 'Gün'}
         onSave={handleSave}
         initialValues={selectedRecord}
         onDeletePress={selectedRecord && selectedDate ? handleDeleteRequest : undefined}
@@ -163,14 +258,20 @@ export function WeekScreen() {
         message="Bu günün kaydı tamamen silinecek."
         confirmLabel="Sil"
         cancelLabel="Vazgeç"
-        onCancel={() => setConfirmVisible(false)}
+        onCancel={() => {
+          setConfirmVisible(false);
+          pendingDeleteRef.current = null;
+          openConfirmAfterCloseRef.current = false;
+        }}
         onConfirm={() => {
-          if (selectedDate) {
-            removeRecord(selectedDate);
+          if (pendingDeleteRef.current) {
+            removeRecord(pendingDeleteRef.current);
           }
           setConfirmVisible(false);
           setEditVisible(false);
           setSelectedDate(null);
+          pendingDeleteRef.current = null;
+          openConfirmAfterCloseRef.current = false;
         }}
       />
     </SafeAreaView>
@@ -181,7 +282,7 @@ function formatSummary(record: DailyRecord) {
   const questionTotal = getQuestionTotal(record);
   return questionTotal > 0
     ? `${record.focusMinutes} dk · ${questionTotal} soru`
-    : `${record.focusMinutes} dk`;
+    : `${record.focusMinutes} dk odak`;
 }
 
 function getWeekdayIndex(dateString: string) {
@@ -189,16 +290,6 @@ function getWeekdayIndex(dateString: string) {
   const date = new Date(year, (month ?? 1) - 1, day ?? 1);
   const dayIndex = date.getDay();
   return dayIndex === 0 ? 6 : dayIndex - 1;
-}
-
-function formatDateShort(dateString: string) {
-  const [year, month, day] = dateString.split('-').map(Number);
-  if (!year || !month || !day) {
-    return dateString;
-  }
-  const dd = String(day).padStart(2, '0');
-  const mm = String(month).padStart(2, '0');
-  return `${dd}.${mm}`;
 }
 
 function parseDateString(dateString: string) {
@@ -224,65 +315,125 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   container: {
-    flex: 1,
-    padding: spacing.xl,
-    gap: spacing.lg,
-  },
-  header: {
-    gap: spacing.sm,
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '700',
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
+    gap: spacing.xl,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  backIcon: {
-    transform: [{ rotate: '180deg' }],
+  title: {
+    color: colors.textPrimary,
+    fontSize: 22,
+    fontWeight: '700',
   },
   subtitle: {
     color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '500',
+    marginTop: spacing.xs,
+  },
+  dotSection: {
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  sectionLabel: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
   },
   dotCapsule: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: radius.full,
     backgroundColor: colors.capsule,
   },
-  listCard: {
-    padding: spacing.lg,
+  statsRow: {
+    flexDirection: 'row',
     gap: spacing.sm,
   },
-  listRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  statCard: {
+    flex: 1,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
     alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    gap: spacing.xs,
   },
-  listRowLast: {
-    borderBottomWidth: 0,
+  statValue: {
+    color: colors.textPrimary,
+    fontSize: 20,
+    fontWeight: '700',
   },
-  listRowPressed: {
+  statLabel: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+  },
+  daysSection: {
+    gap: spacing.md,
+  },
+  daysList: {
+    gap: spacing.sm,
+  },
+  dayCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  dayRowPressed: {
     opacity: 0.75,
   },
-  rowLabel: {
-    color: colors.textStrong,
+  dayLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  dayIndicator: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayIndicatorFilled: {
+    backgroundColor: colors.accentDeep,
+  },
+  dayIndicatorEmpty: {
+    backgroundColor: colors.capsule,
+  },
+  dayIndicatorText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  dayIndicatorTextFilled: {
+    color: colors.surface,
+  },
+  dayIndicatorTextEmpty: {
+    color: colors.textMuted,
+  },
+  dayInfo: {
+    gap: 2,
+  },
+  dayLabel: {
+    color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '600',
   },
-  rowValue: {
+  daySummary: {
     color: colors.textSecondary,
-    fontSize: 13,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  dayEmpty: {
+    color: colors.textMuted,
+    fontSize: 12,
     fontWeight: '500',
   },
 });

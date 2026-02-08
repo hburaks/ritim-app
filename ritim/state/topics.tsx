@@ -9,7 +9,7 @@ import React, {
 
 import { loadTopics, saveTopics } from '@/lib/storage/topicsStorage';
 
-export type TopicSubject = 'MAT' | 'TURK' | 'FEN' | 'INK';
+export type TopicSubject = 'MAT' | 'TURK' | 'FEN' | 'INK' | 'DIN';
 export type TopicMood = 'GOOD' | 'HARD' | 'NONE';
 
 export type TopicItem = {
@@ -52,6 +52,8 @@ const TOPICS_7: TopicItem[] = [
   { id: 'fen-7-2', subject: 'FEN', title: 'Kuvvet ve enerji' },
   { id: 'ink-7-1', subject: 'INK', title: 'Milli Mucadele' },
   { id: 'ink-7-2', subject: 'INK', title: 'Ataturkculuk' },
+  { id: 'din-7-1', subject: 'DIN', title: 'Inanc esaslari' },
+  { id: 'din-7-2', subject: 'DIN', title: 'Ibadet ve dua' },
 ];
 
 const TOPICS_8: TopicItem[] = [
@@ -63,6 +65,8 @@ const TOPICS_8: TopicItem[] = [
   { id: 'fen-8-2', subject: 'FEN', title: 'Basinc' },
   { id: 'ink-8-1', subject: 'INK', title: 'Inkilap tarihi' },
   { id: 'ink-8-2', subject: 'INK', title: 'Ataturk ilkeleri' },
+  { id: 'din-8-1', subject: 'DIN', title: 'Ahlak ve erdem' },
+  { id: 'din-8-2', subject: 'DIN', title: 'Hak ve sorumluluk' },
 ];
 
 function topicsReducer(state: TopicsState, action: TopicsAction): TopicsState {

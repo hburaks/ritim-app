@@ -188,7 +188,7 @@ export function HomeScreen() {
           >
             <View>
               <Text style={styles.navTitle}>Konular</Text>
-              <Text style={styles.navSubtitle}>Konu hissi işaretle</Text>
+              <Text style={styles.navSubtitle}>Konu hakkındaki hissini işaretle</Text>
             </View>
             <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
           </Pressable>

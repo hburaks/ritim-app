@@ -57,8 +57,8 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   base: {
-    height: 48,
-    paddingHorizontal: spacing.xl,
+    height: 56,
+    paddingHorizontal: spacing.lg,
     borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   enabled: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentDeep,
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 8,
@@ -77,7 +77,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.neutral400,
   },
   pressed: {
-    opacity: 0.9,
+    opacity: 0.92,
+    transform: [{ translateY: 1 }],
   },
   text: {
     fontSize: 16,

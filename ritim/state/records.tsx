@@ -23,6 +23,7 @@ export type DailyRecord = {
 type RecordsContextValue = {
   records: DailyRecord[];
   upsertRecord: (record: DailyRecord) => void;
+  removeRecord: (date: string) => void;
   getRecordByDate: (date: string) => DailyRecord | undefined;
   hasRecordForDate: (date: string) => boolean;
   getWeekDots: (weekStartDate?: Date | string) => boolean[];
@@ -89,6 +90,10 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const removeRecord = useCallback((date: string) => {
+    setRecords((current) => current.filter((record) => record.date !== date));
+  }, []);
+
   const recordMap = useMemo(() => {
     return new Map(records.map((record) => [record.date, record]));
   }, [records]);
@@ -120,12 +125,21 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
     () => ({
       records,
       upsertRecord,
+      removeRecord,
       getRecordByDate,
       hasRecordForDate,
       getWeekDots,
       hydrated,
     }),
-    [records, upsertRecord, getRecordByDate, hasRecordForDate, getWeekDots, hydrated]
+    [
+      records,
+      upsertRecord,
+      removeRecord,
+      getRecordByDate,
+      hasRecordForDate,
+      getWeekDots,
+      hydrated,
+    ]
   );
 
   return (

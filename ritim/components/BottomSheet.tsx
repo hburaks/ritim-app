@@ -14,12 +14,19 @@ type BottomSheetProps = {
   visible: boolean;
   onClose: () => void;
   title?: string;
+  headerRight?: React.ReactNode;
   children?: React.ReactNode;
 };
 
 const SHEET_HEIGHT = 360;
 
-export function BottomSheet({ visible, onClose, title, children }: BottomSheetProps) {
+export function BottomSheet({
+  visible,
+  onClose,
+  title,
+  headerRight,
+  children,
+}: BottomSheetProps) {
   const [rendered, setRendered] = useState(visible);
   const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -89,7 +96,12 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
         </Pressable>
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
           <View style={styles.handle} />
-          {title ? <Text style={styles.title}>{title}</Text> : null}
+          {title || headerRight ? (
+            <View style={styles.headerRow}>
+              {title ? <Text style={styles.title}>{title}</Text> : <View />}
+              {headerRight ? <View style={styles.headerRight}>{headerRight}</View> : null}
+            </View>
+          ) : null}
           {children}
         </Animated.View>
       </View>
@@ -131,6 +143,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.textPrimary,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: spacing.md,
+  },
+  headerRight: {
+    alignItems: 'flex-end',
   },
 });

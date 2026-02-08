@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, spacing } from '@/lib/theme/tokens';
 import type { ActivityType, DailyRecord } from '@/state/records';
 
@@ -28,6 +29,7 @@ type DayEntrySheetProps = {
   title: string;
   onClose: () => void;
   onSave: (values: DayEntryValues) => void;
+  onDeletePress?: () => void;
   initialValues?: Partial<DayEntryValues>;
 };
 
@@ -36,6 +38,7 @@ export function DayEntrySheet({
   title,
   onClose,
   onSave,
+  onDeletePress,
   initialValues,
 }: DayEntrySheetProps) {
   const [duration, setDuration] = useState(45);
@@ -113,101 +116,120 @@ export function DayEntrySheet({
     });
   };
 
+  const headerRight = onDeletePress ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Kaydı sil"
+      onPress={onDeletePress}
+      style={({ pressed }) => [
+        styles.deleteButton,
+        pressed ? styles.deleteButtonPressed : null,
+      ]}
+    >
+      <IconSymbol name="trash" size={18} color={colors.textSecondary} />
+    </Pressable>
+  ) : null;
+
   return (
-    <BottomSheet visible={visible} onClose={onClose} title={title}>
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title={title}
+      headerRight={headerRight}
+    >
       <View style={styles.sheetSection}>
-        <Text style={styles.sheetLabel}>Süre</Text>
-        <View style={styles.durationRow}>
-          <Pressable
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.durationButton,
-              pressed ? styles.durationButtonPressed : null,
-            ]}
-            onPress={() => adjustDuration(-DURATION_STEP)}
-          >
-            <Text style={styles.durationButtonText}>-</Text>
-          </Pressable>
-          <Text style={styles.durationValue}>{durationLabel}</Text>
-          <Pressable
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.durationButton,
-              pressed ? styles.durationButtonPressed : null,
-            ]}
-            onPress={() => adjustDuration(DURATION_STEP)}
-          >
-            <Text style={styles.durationButtonText}>+</Text>
-          </Pressable>
-        </View>
-        <View style={styles.chipRow}>
-          {DURATION_OPTIONS.map((option) => (
-            <Chip
-              key={option}
-              label={`${option} dk`}
-              selected={duration === option}
-              onPress={() => setDuration(option)}
-            />
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.sheetSection}>
-        <Text style={styles.sheetLabel}>Tür</Text>
-        <View style={styles.chipRow}>
-          {TYPE_OPTIONS.map((option) => (
-            <Chip
-              key={option.value}
-              label={option.label}
-              selected={entryType === option.value}
-              onPress={() => setEntryType(option.value)}
-            />
-          ))}
-        </View>
-      </View>
-
-      {showQuestionCounts ? (
-        <View style={styles.sheetSection}>
-          <Text style={styles.sheetLabel}>Derslere soru sayısı (opsiyonel)</Text>
-          <View style={styles.questionList}>
-            {SUBJECT_OPTIONS.map((subject) => (
-              <View key={subject} style={styles.questionRow}>
-                <Text style={styles.questionLabel}>{subject}</Text>
-                <View style={styles.questionStepper}>
-                  <Pressable
-                    accessibilityRole="button"
-                    style={({ pressed }) => [
-                      styles.stepperButton,
-                      pressed ? styles.stepperButtonPressed : null,
-                    ]}
-                    onPress={() => adjustQuestionCount(subject, -5)}
-                  >
-                    <Text style={styles.stepperButtonText}>-</Text>
-                  </Pressable>
-                  <TextInput
-                    value={questionCounts[subject] ?? ''}
-                    onChangeText={(value) => handleCountChange(subject, value)}
-                    keyboardType="number-pad"
-                    placeholder="—"
-                    placeholderTextColor={colors.textMuted}
-                    style={styles.questionInput}
-                  />
-                  <Pressable
-                    accessibilityRole="button"
-                    style={({ pressed }) => [
-                      styles.stepperButton,
-                      pressed ? styles.stepperButtonPressed : null,
-                    ]}
-                    onPress={() => adjustQuestionCount(subject, 5)}
-                  >
-                    <Text style={styles.stepperButtonText}>+</Text>
-                  </Pressable>
-                </View>
-              </View>
+          <Text style={styles.sheetLabel}>Süre</Text>
+          <View style={styles.durationRow}>
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.durationButton,
+                pressed ? styles.durationButtonPressed : null,
+              ]}
+              onPress={() => adjustDuration(-DURATION_STEP)}
+            >
+              <Text style={styles.durationButtonText}>-</Text>
+            </Pressable>
+            <Text style={styles.durationValue}>{durationLabel}</Text>
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.durationButton,
+                pressed ? styles.durationButtonPressed : null,
+              ]}
+              onPress={() => adjustDuration(DURATION_STEP)}
+            >
+              <Text style={styles.durationButtonText}>+</Text>
+            </Pressable>
+          </View>
+          <View style={styles.chipRow}>
+            {DURATION_OPTIONS.map((option) => (
+              <Chip
+                key={option}
+                label={`${option} dk`}
+                selected={duration === option}
+                onPress={() => setDuration(option)}
+              />
             ))}
           </View>
         </View>
-      ) : null}
+
+        <View style={styles.sheetSection}>
+          <Text style={styles.sheetLabel}>Tür</Text>
+          <View style={styles.chipRow}>
+            {TYPE_OPTIONS.map((option) => (
+              <Chip
+                key={option.value}
+                label={option.label}
+                selected={entryType === option.value}
+                onPress={() => setEntryType(option.value)}
+              />
+            ))}
+          </View>
+        </View>
+
+        {showQuestionCounts ? (
+          <View style={styles.sheetSection}>
+            <Text style={styles.sheetLabel}>Derslere soru sayısı (opsiyonel)</Text>
+            <View style={styles.questionList}>
+              {SUBJECT_OPTIONS.map((subject) => (
+                <View key={subject} style={styles.questionRow}>
+                  <Text style={styles.questionLabel}>{subject}</Text>
+                  <View style={styles.questionStepper}>
+                    <Pressable
+                      accessibilityRole="button"
+                      style={({ pressed }) => [
+                        styles.stepperButton,
+                        pressed ? styles.stepperButtonPressed : null,
+                      ]}
+                      onPress={() => adjustQuestionCount(subject, -5)}
+                    >
+                      <Text style={styles.stepperButtonText}>-</Text>
+                    </Pressable>
+                    <TextInput
+                      value={questionCounts[subject] ?? ''}
+                      onChangeText={(value) => handleCountChange(subject, value)}
+                      keyboardType="number-pad"
+                      placeholder="—"
+                      placeholderTextColor={colors.textMuted}
+                      style={styles.questionInput}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      style={({ pressed }) => [
+                        styles.stepperButton,
+                        pressed ? styles.stepperButtonPressed : null,
+                      ]}
+                      onPress={() => adjustQuestionCount(subject, 5)}
+                    >
+                      <Text style={styles.stepperButtonText}>+</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
       <PrimaryButton label="Kaydet" onPress={handleSave} />
     </BottomSheet>
@@ -300,5 +322,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: colors.textPrimary,
     backgroundColor: colors.surface,
+  },
+  deleteButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.neutral200,
+  },
+  deleteButtonPressed: {
+    opacity: 0.7,
   },
 });

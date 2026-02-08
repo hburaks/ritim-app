@@ -15,6 +15,13 @@ type DotRowProps = {
   filled?: boolean[];
   onChange?: (index: number) => void;
   style?: StyleProp<ViewStyle>;
+  size?: number;
+  gap?: number;
+  activeColor?: string;
+  inactiveColor?: string;
+  highlightIndex?: number;
+  highlightColor?: string;
+  pressablePadding?: number;
 };
 
 const DOT_COUNT = 7;
@@ -24,6 +31,13 @@ export function DotRow({
   filled,
   onChange,
   style,
+  size = 12,
+  gap = spacing.sm,
+  activeColor = colors.accent,
+  inactiveColor = colors.neutral300,
+  highlightIndex,
+  highlightColor,
+  pressablePadding = spacing.xs,
 }: DotRowProps) {
   const scales = useRef(
     Array.from({ length: DOT_COUNT }, () => new Animated.Value(1))
@@ -51,21 +65,33 @@ export function DotRow({
   }, [activeIndex, scales]);
 
   return (
-    <View style={[styles.row, style]}>
+    <View style={[styles.row, { gap }, style]}>
       {dots.map((_, index) => {
         const isActive = index === activeIndex;
         const isFilled = filled ? Boolean(filled[index]) : isActive;
+        const isHighlighted = highlightIndex === index;
+        const outlineColor =
+          isHighlighted && !isFilled && highlightColor
+            ? highlightColor
+            : inactiveColor;
         return (
           <Pressable
             key={index}
             onPress={() => onChange?.(index)}
             hitSlop={6}
-            style={styles.pressable}
+            style={[styles.pressable, { padding: pressablePadding }]}
           >
             <Animated.View
               style={[
                 styles.dot,
-                isFilled ? styles.dotActive : styles.dotInactive,
+                {
+                  width: size,
+                  height: size,
+                  borderRadius: size / 2,
+                },
+                isFilled
+                  ? { backgroundColor: activeColor, borderColor: activeColor }
+                  : { backgroundColor: 'transparent', borderColor: outlineColor },
                 { transform: [{ scale: scales[index] }] },
               ]}
             />
@@ -80,23 +106,10 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
   },
   pressable: {
-    padding: spacing.xs,
   },
   dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
     borderWidth: 2,
-  },
-  dotActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  dotInactive: {
-    backgroundColor: 'transparent',
-    borderColor: colors.neutral300,
   },
 });

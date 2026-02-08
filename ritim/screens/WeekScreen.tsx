@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { BottomSheet } from '@/components/BottomSheet';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DayEntrySheet } from '@/components/DayEntrySheet';
 import { DotRow } from '@/components/DotRow';
 import { TextLink } from '@/components/TextLink';
@@ -24,10 +25,12 @@ const DAY_LONG_LABELS = [
 export function WeekScreen() {
   const router = useRouter();
   const { weekStart } = useLocalSearchParams<{ weekStart?: string }>();
-  const { getWeekDots, getRecordByDate, upsertRecord } = useRecords();
+  const { getWeekDots, getRecordByDate, upsertRecord, removeRecord } = useRecords();
   const [detailVisible, setDetailVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const weekStartDate = typeof weekStart === 'string' ? weekStart : undefined;
   const weekDates = useMemo(() => {
@@ -55,6 +58,14 @@ export function WeekScreen() {
 
   const selectedRecord = selectedDate ? getRecordByDate(selectedDate) : undefined;
 
+  useEffect(() => {
+    return () => {
+      if (deleteTimeoutRef.current) {
+        clearTimeout(deleteTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleRowPress = (date: string) => {
     setSelectedDate(date);
     setDetailVisible(true);
@@ -79,6 +90,19 @@ export function WeekScreen() {
       ...values,
     });
     setEditVisible(false);
+  };
+
+  const handleDeleteRequest = () => {
+    if (!selectedDate) {
+      return;
+    }
+    setEditVisible(false);
+    if (deleteTimeoutRef.current) {
+      clearTimeout(deleteTimeoutRef.current);
+    }
+    deleteTimeoutRef.current = setTimeout(() => {
+      setConfirmVisible(true);
+    }, 240);
   };
 
   const detailTitle = selectedDate
@@ -152,6 +176,22 @@ export function WeekScreen() {
         title={detailTitle || 'Gun'}
         onSave={handleSave}
         initialValues={selectedRecord}
+        onDeletePress={selectedRecord && selectedDate ? handleDeleteRequest : undefined}
+      />
+
+      <ConfirmDialog
+        visible={confirmVisible}
+        title="Kaydı sil?"
+        message="Bu günün kaydı tamamen silinecek."
+        confirmLabel="Sil"
+        cancelLabel="Vazgeç"
+        onCancel={() => setConfirmVisible(false)}
+        onConfirm={() => {
+          if (selectedDate) {
+            removeRecord(selectedDate);
+          }
+          setConfirmVisible(false);
+        }}
       />
     </SafeAreaView>
   );

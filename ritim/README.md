@@ -57,4 +57,8 @@ Manual Test Checklist
 - Delete flow: delete from Home and Week; sheets close and dots update.
 - Persistence: create/delete records, kill app, reopen; data should persist.
 - Infinite scroll: /days loads more weeks when scrolling down.
+- Settings: enable reminders -> permission accepted -> scheduled.
+- Settings: disable reminders -> scheduled notifications canceled.
+- Settings: change reminder time -> rescheduled at new time.
+- Settings: delete all records -> confirm -> Home updates and Days list becomes empty.
 -->

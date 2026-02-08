@@ -19,6 +19,7 @@ export default function RootLayout() {
               <Stack.Screen name="week/[weekStart]" />
               <Stack.Screen name="topics" />
               <Stack.Screen name="playground" />
+              <Stack.Screen name="settings" />
             </Stack>
           </TopicsProviderBridge>
         </RecordsProvider>

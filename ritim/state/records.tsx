@@ -10,6 +10,7 @@ import { AppState } from 'react-native';
 
 import { rescheduleAllBasedOnRecords } from '@/lib/notifications/ritimNotifications';
 import { loadRecords, saveRecords } from '@/lib/storage/recordsStorage';
+import { parseReminderTime, useSettings } from '@/state/settings';
 
 export type ActivityType = 'KONU' | 'SORU' | 'KARISIK';
 
@@ -31,6 +32,7 @@ type RecordsAction =
   | { type: 'hydrate'; payload: Record<string, DailyRecord> }
   | { type: 'upsert'; payload: DailyRecord }
   | { type: 'remove'; payload: { date: string } }
+  | { type: 'clear' }
   | { type: 'set-today'; payload: string };
 
 type RecordsContextValue = {
@@ -38,6 +40,7 @@ type RecordsContextValue = {
   recordsByDate: Record<string, DailyRecord>;
   upsertRecord: (record: DailyRecord) => void;
   removeRecord: (date: string) => void;
+  clearRecords: () => void;
   getRecordByDate: (date: string) => DailyRecord | undefined;
   selectTodayRecord: (dateKey?: string) => DailyRecord | undefined;
   selectWeekDots: (weekStartKey?: string) => boolean[];
@@ -86,6 +89,11 @@ function recordsReducer(state: RecordsState, action: RecordsAction): RecordsStat
         recordsByDate: next,
       };
     }
+    case 'clear':
+      return {
+        ...state,
+        recordsByDate: {},
+      };
     case 'set-today': {
       if (action.payload === state.todayKey) {
         return state;
@@ -102,6 +110,7 @@ function recordsReducer(state: RecordsState, action: RecordsAction): RecordsStat
 
 export function RecordsProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(recordsReducer, INITIAL_STATE);
+  const { settings, hydrated: settingsHydrated, updateSettings } = useSettings();
 
   useEffect(() => {
     let active = true;
@@ -139,11 +148,31 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
   }, [state.recordsByDate, state.hydrated]);
 
   useEffect(() => {
-    if (!state.hydrated) {
+    if (!state.hydrated || !settingsHydrated) {
       return;
     }
-    rescheduleAllBasedOnRecords(records);
-  }, [records, state.hydrated]);
+    if (!settings.remindersEnabled) {
+      return;
+    }
+    const reminderTime = parseReminderTime(settings.reminderTime);
+    let active = true;
+    void rescheduleAllBasedOnRecords(records, reminderTime).then((id) => {
+      if (!active) {
+        return;
+      }
+      updateSettings({ scheduledNotificationId: id ?? null });
+    });
+    return () => {
+      active = false;
+    };
+  }, [
+    records,
+    settings.remindersEnabled,
+    settings.reminderTime,
+    state.hydrated,
+    settingsHydrated,
+    updateSettings,
+  ]);
 
   const refreshTodayKey = useCallback(() => {
     const nextKey = getDateKey();
@@ -169,6 +198,10 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
 
   const removeRecord = useCallback((date: string) => {
     dispatch({ type: 'remove', payload: { date } });
+  }, []);
+
+  const clearRecords = useCallback(() => {
+    dispatch({ type: 'clear' });
   }, []);
 
   const getRecordByDate = useCallback(
@@ -205,6 +238,7 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
       recordsByDate: state.recordsByDate,
       upsertRecord,
       removeRecord,
+      clearRecords,
       getRecordByDate,
       selectTodayRecord,
       selectWeekDots,
@@ -219,6 +253,7 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
       state.recordsByDate,
       upsertRecord,
       removeRecord,
+      clearRecords,
       getRecordByDate,
       selectTodayRecord,
       selectWeekDots,

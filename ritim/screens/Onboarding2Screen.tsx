@@ -7,14 +7,13 @@ import { DayEntrySheet } from '@/components/DayEntrySheet';
 import { DotRow } from '@/components/DotRow';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
-import { requestPermissionsIfNeeded, rescheduleAllBasedOnRecords } from '@/lib/notifications/ritimNotifications';
 import { useOnboarding } from '@/state/onboarding';
 import { DailyRecord, getTodayDateString, useRecords } from '@/state/records';
 
 export function Onboarding2Screen() {
   const router = useRouter();
   const { completed, hydrated, setCompleted } = useOnboarding();
-  const { records, upsertRecord } = useRecords();
+  const { upsertRecord } = useRecords();
   const [sheetVisible, setSheetVisible] = useState(false);
 
   useEffect(() => {
@@ -40,13 +39,6 @@ export function Onboarding2Screen() {
     upsertRecord(record);
     setCompleted(true);
     setSheetVisible(false);
-    void requestPermissionsIfNeeded().then((granted) => {
-      if (!granted) {
-        return;
-      }
-      const nextRecords = upsertRecordIntoList(records, record);
-      rescheduleAllBasedOnRecords(nextRecords);
-    });
     router.replace('/');
   };
 
@@ -80,16 +72,6 @@ export function Onboarding2Screen() {
       />
     </SafeAreaView>
   );
-}
-
-function upsertRecordIntoList(records: DailyRecord[], record: DailyRecord) {
-  const index = records.findIndex((item) => item.date === record.date);
-  if (index === -1) {
-    return [record, ...records];
-  }
-  const next = [...records];
-  next[index] = record;
-  return next;
 }
 
 const styles = StyleSheet.create({

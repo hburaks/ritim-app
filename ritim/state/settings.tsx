@@ -10,9 +10,9 @@ import React, {
 import { loadSettings, saveSettings } from '@/lib/storage/settingsStorage';
 
 export type AppSettings = {
-  notificationsEnabled: boolean;
-  reminderHour: number;
-  reminderMinute: number;
+  remindersEnabled: boolean;
+  reminderTime: string; // HH:mm
+  scheduledNotificationId: string | null;
 };
 
 type SettingsState = {
@@ -34,10 +34,12 @@ type SettingsContextValue = {
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
 
+export const DEFAULT_REMINDER_TIME = '20:30';
+
 const DEFAULT_SETTINGS: AppSettings = {
-  notificationsEnabled: true,
-  reminderHour: 20,
-  reminderMinute: 30,
+  remindersEnabled: false,
+  reminderTime: DEFAULT_REMINDER_TIME,
+  scheduledNotificationId: null,
 };
 
 const INITIAL_STATE: SettingsState = {
@@ -128,4 +130,28 @@ export function useSettings() {
     throw new Error('useSettings must be used within a SettingsProvider');
   }
   return context;
+}
+
+const TIME_REGEX = /^([01]\\d|2[0-3]):([0-5]\\d)$/;
+
+export function normalizeReminderTime(value?: string) {
+  if (typeof value === 'string' && TIME_REGEX.test(value)) {
+    return value;
+  }
+  return DEFAULT_REMINDER_TIME;
+}
+
+export function parseReminderTime(value?: string) {
+  const normalized = normalizeReminderTime(value);
+  const [hourStr, minuteStr] = normalized.split(':');
+  return {
+    hour: Number(hourStr),
+    minute: Number(minuteStr),
+  };
+}
+
+export function formatReminderTime(hour: number, minute: number) {
+  const safeHour = Math.min(23, Math.max(0, Math.floor(hour)));
+  const safeMinute = Math.min(59, Math.max(0, Math.floor(minute)));
+  return `${String(safeHour).padStart(2, '0')}:${String(safeMinute).padStart(2, '0')}`;
 }

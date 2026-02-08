@@ -6,6 +6,9 @@ import type { DailyRecord } from '@/state/records';
 const DAILY_REMINDER_HOUR = 20;
 const DAILY_REMINDER_MINUTE = 30;
 const SCHEDULE_WINDOW_DAYS = 14;
+const REMINDER_TITLE = 'Bugün odaklandın mı?';
+
+export type ReminderTime = { hour: number; minute: number };
 
 export async function requestPermissionsIfNeeded() {
   if (Platform.OS === 'web') {
@@ -52,7 +55,7 @@ export async function scheduleDailyReminderIfNeeded(todayHasRecord: boolean) {
   }
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: 'Bugün odaklandın mı?',
+      title: REMINDER_TITLE,
       body: '',
     },
     trigger,
@@ -90,34 +93,99 @@ export async function cancelAllRitimNotifications() {
   }
 }
 
-export async function rescheduleAllBasedOnRecords(records: DailyRecord[]) {
+export async function scheduleDailyReminder(time: { hour: number; minute: number }) {
   if (Platform.OS === 'web') {
-    return;
+    return null;
   }
   const permissionGranted = await hasNotificationPermission();
   if (!permissionGranted) {
+    return null;
+  }
+  try {
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: REMINDER_TITLE,
+        body: '',
+      },
+      trigger: {
+        hour: time.hour,
+        minute: time.minute,
+        repeats: true,
+      },
+    });
+    return id;
+  } catch (error) {
+    console.warn('notifications schedule failed', error);
+    return null;
+  }
+}
+
+export async function cancelScheduledReminder(id?: string | null) {
+  if (Platform.OS === 'web') {
     return;
+  }
+  if (!id) {
+    return;
+  }
+  try {
+    await Notifications.cancelScheduledNotificationAsync(id);
+  } catch (error) {
+    console.warn('notifications cancel reminder failed', error);
+  }
+}
+
+export async function isReminderScheduled(id?: string | null) {
+  if (Platform.OS === 'web') {
+    return false;
+  }
+  if (!id) {
+    return false;
+  }
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    return scheduled.some((item) => item.identifier === id);
+  } catch (error) {
+    console.warn('notifications read schedule failed', error);
+    return false;
+  }
+}
+
+export async function rescheduleAllBasedOnRecords(
+  records: DailyRecord[],
+  time?: ReminderTime
+) {
+  if (Platform.OS === 'web') {
+    return null;
+  }
+  const permissionGranted = await hasNotificationPermission();
+  if (!permissionGranted) {
+    return null;
   }
 
   await cancelAllRitimNotifications();
-  await scheduleUpcomingReminders(records);
+  return scheduleUpcomingReminders(records, time);
 }
 
 function getTodayDateString() {
   return toDateString(new Date());
 }
 
-function buildTriggerForDate(dateString: string): Notifications.DateTriggerInput | null {
+function buildTriggerForDate(
+  dateString: string,
+  time?: ReminderTime
+): Notifications.DateTriggerInput | null {
   const date = parseDateString(dateString);
-  date.setHours(DAILY_REMINDER_HOUR, DAILY_REMINDER_MINUTE, 0, 0);
+  const hour = time?.hour ?? DAILY_REMINDER_HOUR;
+  const minute = time?.minute ?? DAILY_REMINDER_MINUTE;
+  date.setHours(hour, minute, 0, 0);
   if (date <= new Date()) {
     return null;
   }
   return { type: Notifications.SchedulableTriggerInputTypes.DATE, date };
 }
 
-function buildTonightTrigger(): Notifications.DateTriggerInput | null {
-  return buildTriggerForDate(getTodayDateString());
+function buildTonightTrigger(time?: ReminderTime): Notifications.DateTriggerInput | null {
+  return buildTriggerForDate(getTodayDateString(), time);
 }
 
 function shiftDateString(dateString: string, deltaDays: number) {
@@ -144,10 +212,11 @@ function parseDateString(dateString: string) {
   return parsed;
 }
 
-async function scheduleUpcomingReminders(records: DailyRecord[]) {
+async function scheduleUpcomingReminders(records: DailyRecord[], time?: ReminderTime) {
   const recordSet = new Set(records.map((record) => record.date));
   const startDate = new Date();
   startDate.setHours(0, 0, 0, 0);
+  let lastScheduledId: string | null = null;
 
   for (let offset = 0; offset < SCHEDULE_WINDOW_DAYS; offset += 1) {
     const date = new Date(startDate);
@@ -158,31 +227,35 @@ async function scheduleUpcomingReminders(records: DailyRecord[]) {
       continue;
     }
 
-    const trigger = buildTriggerForDate(dateString);
+    const trigger = buildTriggerForDate(dateString, time);
     if (!trigger) {
       continue;
     }
 
     const missingStreak = getMissingStreak(recordSet, dateString);
     if (missingStreak >= 2) {
-      await Notifications.scheduleNotificationAsync({
+      const id = await Notifications.scheduleNotificationAsync({
         content: {
           title: `${missingStreak} gündür kayıt yok. Ritmi korumak için bugün kısa bir odak yeter.`,
           body: '',
         },
         trigger,
       });
+      lastScheduledId = id;
       continue;
     }
 
-    await Notifications.scheduleNotificationAsync({
+    const id = await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Bugün odaklandın mı?',
+        title: REMINDER_TITLE,
         body: '',
       },
       trigger,
     });
+    lastScheduledId = id;
   }
+
+  return lastScheduledId;
 }
 
 function getMissingStreak(recordSet: Set<string>, dateString: string) {

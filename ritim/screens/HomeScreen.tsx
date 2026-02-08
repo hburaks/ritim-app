@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 
 import { DayEntrySheet } from '@/components/DayEntrySheet';
 import { DotRow } from '@/components/DotRow';
@@ -55,6 +56,24 @@ export function HomeScreen() {
       refreshTodayKey();
     }, [refreshTodayKey])
   );
+
+  const hasRecord = !!todayRecord;
+  const illustrationOpacity = useSharedValue(hasRecord ? 1 : 0);
+
+  useEffect(() => {
+    illustrationOpacity.value = withTiming(hasRecord ? 1 : 0, {
+      duration: 400,
+      easing: Easing.inOut(Easing.ease),
+    });
+  }, [hasRecord]);
+
+  const entryExistStyle = useAnimatedStyle(() => ({
+    opacity: illustrationOpacity.value,
+  }));
+
+  const noEntryStyle = useAnimatedStyle(() => ({
+    opacity: 1 - illustrationOpacity.value,
+  }));
 
   const todayStatus = useMemo(
     () =>
@@ -129,15 +148,18 @@ export function HomeScreen() {
               />
             </View>
           </View>
-          <Image
-            source={
-              todayRecord
-                ? require('@/assets/images/entry-exist-state-home-screen-illustration.png')
-                : require('@/assets/images/no-entry-state-home-screen-illustration.png')
-            }
-            style={styles.weekIllustration}
-            resizeMode="contain"
-          />
+          <View style={styles.illustrationContainer}>
+            <Animated.Image
+              source={require('@/assets/images/no-entry-state-home-screen-illustration.png')}
+              style={[styles.weekIllustration, styles.illustrationAbsolute, noEntryStyle]}
+              resizeMode="contain"
+            />
+            <Animated.Image
+              source={require('@/assets/images/entry-exist-state-home-screen-illustration.png')}
+              style={[styles.weekIllustration, styles.illustrationAbsolute, entryExistStyle]}
+              resizeMode="contain"
+            />
+          </View>
           <SurfaceCard style={styles.focusCard}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>Bugün Odak Kaydı</Text>
@@ -265,10 +287,19 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     alignItems: 'center',
   },
+  illustrationContainer: {
+    width: '100%',
+    height: 300,
+  },
   weekIllustration: {
     width: '100%',
     height: 300,
     borderRadius: 18,
+  },
+  illustrationAbsolute: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   dotCapsule: {
     paddingHorizontal: spacing.lg,

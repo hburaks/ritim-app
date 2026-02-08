@@ -230,10 +230,20 @@ export function HomeScreen() {
             <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
           </Pressable>
           {showCoachConnect ? (
-            <View style={styles.navRow}>
-              <Text style={styles.navTitle}>Koça bağlan</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/coach-connect')}
+              style={({ pressed }) => [
+                styles.navRow,
+                pressed ? styles.navRowPressed : null,
+              ]}
+            >
+              <View>
+                <Text style={styles.navTitle}>Koça bağlan</Text>
+                <Text style={styles.navSubtitle}>Davet koduyla koçuna bağlan</Text>
+              </View>
               <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
-            </View>
+            </Pressable>
           ) : null}
         </View>
       </ScrollView>

@@ -108,6 +108,7 @@ export async function scheduleDailyReminder(time: { hour: number; minute: number
         body: '',
       },
       trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
         hour: time.hour,
         minute: time.minute,
         repeats: true,

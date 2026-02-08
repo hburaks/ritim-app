@@ -13,6 +13,11 @@ export type AppSettings = {
   remindersEnabled: boolean;
   reminderTime: string; // HH:mm
   scheduledNotificationId: string | null;
+  coachConnected: boolean;
+  coachNote: string | null;
+  coachName: string | null;
+  displayName: string | null;
+  accountEmail: string | null;
 };
 
 type SettingsState = {
@@ -40,6 +45,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   remindersEnabled: false,
   reminderTime: DEFAULT_REMINDER_TIME,
   scheduledNotificationId: null,
+  coachConnected: false,
+  coachNote: null,
+  coachName: null,
+  displayName: null,
+  accountEmail: null,
 };
 
 const INITIAL_STATE: SettingsState = {

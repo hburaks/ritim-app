@@ -8,6 +8,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   remindersEnabled: false,
   reminderTime: '20:30',
   scheduledNotificationId: null,
+  coachConnected: false,
+  coachNote: null,
+  coachName: null,
+  displayName: null,
+  accountEmail: null,
 };
 
 export async function loadSettings(): Promise<AppSettings> {
@@ -25,6 +30,11 @@ export async function loadSettings(): Promise<AppSettings> {
       remindersEnabled: resolveRemindersEnabled(parsed),
       reminderTime,
       scheduledNotificationId: resolveNotificationId(parsed),
+      coachConnected: resolveCoachConnected(parsed),
+      coachNote: resolveCoachNote(parsed),
+      coachName: resolveCoachName(parsed),
+      displayName: resolveDisplayName(parsed),
+      accountEmail: resolveAccountEmail(parsed),
     };
   } catch (error) {
     console.warn('settingsStorage.loadSettings failed', error);
@@ -44,6 +54,11 @@ type LegacySettingsPayload = Partial<{
   remindersEnabled: boolean;
   reminderTime: string;
   scheduledNotificationId: string | null;
+  coachConnected: boolean;
+  coachNote: string | null;
+  coachName: string | null;
+  displayName: string | null;
+  accountEmail: string | null;
   notificationsEnabled: boolean;
   reminderHour: number;
   reminderMinute: number;
@@ -77,6 +92,53 @@ function resolveNotificationId(parsed: LegacySettingsPayload) {
     return null;
   }
   return DEFAULT_SETTINGS.scheduledNotificationId;
+}
+
+function resolveCoachConnected(parsed: LegacySettingsPayload) {
+  if (typeof parsed.coachConnected === 'boolean') {
+    return parsed.coachConnected;
+  }
+  return DEFAULT_SETTINGS.coachConnected;
+}
+
+function resolveCoachNote(parsed: LegacySettingsPayload) {
+  if (typeof parsed.coachNote === 'string') {
+    return parsed.coachNote;
+  }
+  if (parsed.coachNote === null) {
+    return null;
+  }
+  return DEFAULT_SETTINGS.coachNote;
+}
+
+function resolveCoachName(parsed: LegacySettingsPayload) {
+  if (typeof parsed.coachName === 'string') {
+    return parsed.coachName;
+  }
+  if (parsed.coachName === null) {
+    return null;
+  }
+  return DEFAULT_SETTINGS.coachName;
+}
+
+function resolveDisplayName(parsed: LegacySettingsPayload) {
+  if (typeof parsed.displayName === 'string') {
+    return parsed.displayName;
+  }
+  if (parsed.displayName === null) {
+    return null;
+  }
+  return DEFAULT_SETTINGS.displayName;
+}
+
+function resolveAccountEmail(parsed: LegacySettingsPayload) {
+  if (typeof parsed.accountEmail === 'string') {
+    return parsed.accountEmail;
+  }
+  if (parsed.accountEmail === null) {
+    return null;
+  }
+  return DEFAULT_SETTINGS.accountEmail;
 }
 
 function isValidTimeString(value: string) {

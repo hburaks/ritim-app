@@ -20,6 +20,7 @@ export default function RootLayout() {
               <Stack.Screen name="topics" />
               <Stack.Screen name="playground" />
               <Stack.Screen name="settings" />
+              <Stack.Screen name="coach-connect" />
             </Stack>
           </TopicsProviderBridge>
         </RecordsProvider>

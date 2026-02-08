@@ -19,10 +19,12 @@ import {
   getWeekDates,
   useRecords,
 } from '@/state/records';
+import { useSettings } from '@/state/settings';
 
 export function HomeScreen() {
   const router = useRouter();
   const { completed, hydrated } = useOnboarding();
+  const { settings } = useSettings();
   const {
     selectTodayRecord,
     selectWeekDots,
@@ -41,6 +43,10 @@ export function HomeScreen() {
   const weekDots = useMemo(() => selectWeekDots(todayKey), [selectWeekDots, todayKey]);
   const weekDates = useMemo(() => getWeekDates(todayKey), [todayKey]);
   const todayIndex = useMemo(() => weekDates.indexOf(today), [today, weekDates]);
+  const coachNote = useMemo(() => settings.coachNote?.trim() ?? null, [settings.coachNote]);
+  const coachConnected = settings.coachConnected || !!coachNote || !!settings.coachName;
+  const showCoachNote = coachConnected && !!coachNote;
+  const showCoachConnect = !coachConnected;
 
   useEffect(() => {
     if (!hydrated) {
@@ -77,7 +83,9 @@ export function HomeScreen() {
 
   const todayStatus = useMemo(
     () =>
-      todayRecord ? 'Bugün odaklandın' : 'Bugün henüz odak kaydı yok',
+      todayRecord
+        ? 'Bugünkü çalışmanı kaydettin'
+        : 'Bugün henüz odak kaydı oluşturmadın',
     [todayRecord]
   );
 
@@ -121,7 +129,7 @@ export function HomeScreen() {
         <View style={styles.minimalHeader}>
           <View>
             <Text style={styles.title}>BUGÜN</Text>
-            <Text style={styles.subtitle}>Ritmini gözden geçir</Text>
+            <Text style={styles.subtitle}>Haftalık ritmini hızlıca gör</Text>
           </View>
           <IconButton
             accessibilityLabel="Ayarlar"
@@ -130,6 +138,13 @@ export function HomeScreen() {
             <IconSymbol name="gearshape" size={18} color={colors.iconMuted} />
           </IconButton>
         </View>
+
+        {showCoachNote ? (
+          <SurfaceCard style={styles.coachNoteCard} variant="flat">
+            <Text style={styles.coachNoteTitle}>Koçundan Not</Text>
+            <Text style={styles.coachNoteBody}>{coachNote}</Text>
+          </SurfaceCard>
+        ) : null}
 
         <View style={styles.mainStack}>
           <View style={styles.statusBlock}>
@@ -214,6 +229,12 @@ export function HomeScreen() {
             </View>
             <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
           </Pressable>
+          {showCoachConnect ? (
+            <View style={styles.navRow}>
+              <Text style={styles.navTitle}>Koça bağlan</Text>
+              <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
+            </View>
+          ) : null}
         </View>
       </ScrollView>
 
@@ -279,6 +300,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     marginTop: spacing.xs,
+  },
+  coachNoteCard: {
+    padding: spacing.lg,
+    gap: spacing.sm,
+    backgroundColor: colors.accentBeigeSoft,
+  },
+  coachNoteTitle: {
+    color: colors.textStrong,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  coachNoteBody: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
   },
   mainStack: {
     gap: spacing.xs,

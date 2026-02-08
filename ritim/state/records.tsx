@@ -45,7 +45,7 @@ type RecordsContextValue = {
   selectTodayRecord: (dateKey?: string) => DailyRecord | undefined;
   selectWeekDots: (weekStartKey?: string) => boolean[];
   selectHasAnyRecords: () => boolean;
-  getWeekDots: (weekStartDate?: Date | string) => boolean[];
+  getWeekDots: (weekStartKey?: string) => boolean[];
   todayKey: string;
   refreshTodayKey: () => string;
   hydrated: boolean;

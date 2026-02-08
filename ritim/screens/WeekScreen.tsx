@@ -3,13 +3,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { BottomSheet } from '@/components/BottomSheet';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DayEntrySheet } from '@/components/DayEntrySheet';
 import { DotRow } from '@/components/DotRow';
 import { IconButton } from '@/components/IconButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
-import { TextLink } from '@/components/TextLink';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { ActivityType, DailyRecord, getWeekDates, useRecords } from '@/state/records';
@@ -29,7 +27,6 @@ export function WeekScreen() {
   const router = useRouter();
   const { weekStart } = useLocalSearchParams<{ weekStart?: string }>();
   const { getWeekDots, getRecordByDate, upsertRecord, removeRecord } = useRecords();
-  const [detailVisible, setDetailVisible] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -71,11 +68,6 @@ export function WeekScreen() {
 
   const handleRowPress = (date: string) => {
     setSelectedDate(date);
-    setDetailVisible(true);
-  };
-
-  const handleEdit = () => {
-    setDetailVisible(false);
     setEditVisible(true);
   };
 
@@ -93,6 +85,7 @@ export function WeekScreen() {
       ...values,
     });
     setEditVisible(false);
+    setSelectedDate(null);
   };
 
   const handleDeleteRequest = () => {
@@ -108,11 +101,7 @@ export function WeekScreen() {
     }, 240);
   };
 
-  const detailTitle = selectedDate
-    ? DAY_LONG_LABELS[getWeekdayIndex(selectedDate)]
-    : '';
-
-  const detailSummary = selectedRecord ? formatSummary(selectedRecord) : '—';
+  const detailTitle = selectedDate ? DAY_LONG_LABELS[getWeekdayIndex(selectedDate)] : '';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -156,30 +145,12 @@ export function WeekScreen() {
         </SurfaceCard>
       </View>
 
-      <BottomSheet
-        visible={detailVisible}
-        onClose={() => setDetailVisible(false)}
-        title={detailTitle}
-      >
-        <View style={styles.detailContent}>
-          <Text style={styles.detailSummary}>Toplam: {detailSummary}</Text>
-          {selectedRecord?.subjectBreakdown ? (
-            <View style={styles.breakdownList}>
-              {Object.entries(selectedRecord.subjectBreakdown).map(([subject, value]) => (
-                <View key={subject} style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>{subject}</Text>
-                  <Text style={styles.breakdownValue}>{value}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-          <TextLink label="Duzenle →" onPress={handleEdit} textStyle={styles.editLink} />
-        </View>
-      </BottomSheet>
-
       <DayEntrySheet
         visible={editVisible}
-        onClose={() => setEditVisible(false)}
+        onClose={() => {
+          setEditVisible(false);
+          setSelectedDate(null);
+        }}
         title={detailTitle || 'Gun'}
         onSave={handleSave}
         initialValues={selectedRecord}
@@ -198,7 +169,6 @@ export function WeekScreen() {
             removeRecord(selectedDate);
           }
           setConfirmVisible(false);
-          setDetailVisible(false);
           setEditVisible(false);
           setSelectedDate(null);
         }}
@@ -314,34 +284,5 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '500',
-  },
-  detailContent: {
-    gap: spacing.md,
-  },
-  detailSummary: {
-    color: colors.textStrong,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  breakdownList: {
-    gap: spacing.sm,
-  },
-  breakdownRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  breakdownLabel: {
-    color: colors.textSecondary,
-    fontSize: 14,
-  },
-  breakdownValue: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  editLink: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '600',
   },
 });

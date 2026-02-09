@@ -26,6 +26,7 @@ import {
   cancelScheduledReminder,
   requestPermissionsIfNeeded,
 } from '@/lib/notifications/ritimNotifications';
+import { signOut } from '@/lib/supabase/auth';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { useRecords } from '@/state/records';
 import {
@@ -130,7 +131,8 @@ export function SettingsScreen() {
     setDisconnectVisible(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     updateSettings({
       accountEmail: null,
       coachConnected: false,

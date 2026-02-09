@@ -16,12 +16,14 @@ import { IconButton } from '@/components/IconButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { signInWithGoogle } from '@/lib/supabase/auth';
 import {
   consumeInvite,
   getErrorMessage,
   verifyInvite,
 } from '@/lib/supabase/invites';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
+import { useAuth } from '@/state/auth';
 import { useSettings } from '@/state/settings';
 
 type Step = 'code' | 'login' | 'name' | 'success';
@@ -31,9 +33,16 @@ type VerifiedCoach = {
   displayName: string;
 };
 
+const AUTH_ERROR_MESSAGES: Record<string, string> = {
+  browser_cancel: 'Giriş iptal edildi.',
+  browser_dismiss: 'Giriş penceresi kapatıldı.',
+  missing_tokens: 'Giriş bilgileri alınamadı. Lütfen tekrar dene.',
+};
+
 export function CoachConnectScreen() {
   const router = useRouter();
   const { updateSettings } = useSettings();
+  const { session } = useAuth();
 
   const [step, setStep] = useState<Step>('code');
   const [code, setCode] = useState('');
@@ -60,7 +69,12 @@ export function CoachConnectScreen() {
       const result = await verifyInvite(code);
       if (result.ok) {
         setVerifiedCoach({ id: result.coach_id, displayName: result.coach_display_name });
-        setStep('login');
+        // Zaten login ise login adımını atla
+        if (session) {
+          setStep('name');
+        } else {
+          setStep('login');
+        }
       } else {
         setError(getErrorMessage(result.error_code));
       }
@@ -73,9 +87,15 @@ export function CoachConnectScreen() {
     setError(null);
     setLoading(true);
     try {
-      // Mock: T2.4'te gerçek Google OAuth ile değiştirilecek
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setStep('name');
+      const result = await signInWithGoogle();
+      console.log('[CoachConnect] Google login result:', JSON.stringify(result, null, 2));
+      if (result.success) {
+        setStep('name');
+      } else {
+        const errorKey = typeof result.error === 'string' ? result.error : '';
+        const msg = AUTH_ERROR_MESSAGES[errorKey] ?? 'Giriş yapılamadı. Lütfen tekrar dene.';
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -91,7 +111,7 @@ export function CoachConnectScreen() {
           coachConnected: true,
           coachName: verifiedCoach?.displayName ?? null,
           displayName,
-          accountEmail: 'mock@gmail.com', // Mock: T2.4'te gerçek session email ile değiştirilecek
+          accountEmail: session?.user?.email ?? null,
         });
         setStep('success');
       } else {
@@ -325,7 +345,9 @@ function StepSuccess({ onGoHome }: { onGoHome: () => void }) {
   return (
     <View style={styles.stepContainer}>
       <SurfaceCard style={styles.card}>
-        <Text style={styles.successEmoji}>🎉</Text>
+        <View style={styles.successIconContainer}>
+          <IconSymbol name="checkmark.circle.fill" size={48} color={colors.accentDeep} />
+        </View>
         <Text style={styles.successTitle}>Koçuna başarıyla bağlandın</Text>
         <Text style={styles.successDescription}>
           Artık ilerlemen koçunla paylaşılacak.
@@ -446,9 +468,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.surface,
   },
-  successEmoji: {
-    fontSize: 40,
-    textAlign: 'center',
+  successIconContainer: {
+    alignItems: 'center',
   },
   successTitle: {
     fontSize: 18,

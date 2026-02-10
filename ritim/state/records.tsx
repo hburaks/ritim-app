@@ -10,6 +10,12 @@ import { AppState } from 'react-native';
 
 import { rescheduleAllBasedOnRecords } from '@/lib/notifications/ritimNotifications';
 import { loadRecords, saveRecords } from '@/lib/storage/recordsStorage';
+import {
+  deleteRecordFromCloud,
+  shouldSync,
+  syncRecord,
+} from '@/lib/supabase/sync';
+import { useAuth } from '@/state/auth';
 import { parseReminderTime, useSettings } from '@/state/settings';
 
 export type ActivityType = 'KONU' | 'SORU' | 'KARISIK';
@@ -111,6 +117,7 @@ function recordsReducer(state: RecordsState, action: RecordsAction): RecordsStat
 export function RecordsProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(recordsReducer, INITIAL_STATE);
   const { settings, hydrated: settingsHydrated, updateSettings } = useSettings();
+  const { session } = useAuth();
 
   useEffect(() => {
     let active = true;
@@ -192,13 +199,25 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refreshTodayKey]);
 
-  const upsertRecord = useCallback((record: DailyRecord) => {
-    dispatch({ type: 'upsert', payload: record });
-  }, []);
+  const upsertRecord = useCallback(
+    (record: DailyRecord) => {
+      dispatch({ type: 'upsert', payload: record });
+      if (shouldSync(record.date, settings.coachConnected, session)) {
+        syncRecord(record, session!).catch(console.warn);
+      }
+    },
+    [settings.coachConnected, session],
+  );
 
-  const removeRecord = useCallback((date: string) => {
-    dispatch({ type: 'remove', payload: { date } });
-  }, []);
+  const removeRecord = useCallback(
+    (date: string) => {
+      dispatch({ type: 'remove', payload: { date } });
+      if (shouldSync(date, settings.coachConnected, session)) {
+        deleteRecordFromCloud(date, session!).catch(console.warn);
+      }
+    },
+    [settings.coachConnected, session],
+  );
 
   const clearRecords = useCallback(() => {
     dispatch({ type: 'clear' });

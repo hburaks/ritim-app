@@ -8,6 +8,8 @@ import React, {
 } from 'react';
 
 import { loadTopics, saveTopics } from '@/lib/storage/topicsStorage';
+import { getTopicsSourceForActiveTrack } from '@/lib/track/selectors';
+import type { TrackId } from '@/lib/track/tracks';
 
 export type TopicSubject = 'MAT' | 'TURK' | 'FEN' | 'INK' | 'DIN';
 export type TopicMood = 'GOOD' | 'HARD' | 'NONE';
@@ -104,10 +106,10 @@ function topicsReducer(state: TopicsState, action: TopicsAction): TopicsState {
 
 export function TopicsProvider({
   children,
-  grade = '8',
+  trackId,
 }: {
   children: React.ReactNode;
-  grade?: '7' | '8';
+  trackId: TrackId;
 }) {
   const [state, dispatch] = useReducer(topicsReducer, INITIAL_STATE);
 
@@ -142,7 +144,12 @@ export function TopicsProvider({
     return () => clearTimeout(handle);
   }, [state.moods, state.hydrated]);
 
-  const topics = useMemo(() => (grade === '7' ? TOPICS_7 : TOPICS_8), [grade]);
+  const topics = useMemo(() => {
+    const source = getTopicsSourceForActiveTrack(trackId);
+    if (source === 'TOPICS_7') return TOPICS_7;
+    if (source === 'TOPICS_8') return TOPICS_8;
+    return [];
+  }, [trackId]);
 
   const setMood = useCallback((topicId: string, mood: TopicMood) => {
     dispatch({ type: 'set-mood', payload: { topicId, mood } });

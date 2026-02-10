@@ -15,10 +15,11 @@ import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, spacing } from '@/lib/theme/tokens';
+import { getSubjectsForActiveTrack } from '@/lib/track/selectors';
 import type { DailyRecord } from '@/state/records';
+import { useSettings } from '@/state/settings';
 
 const DURATION_OPTIONS = [30, 60, 90, 120, 180] as const;
-const SUBJECT_OPTIONS = ['Matematik', 'Türkçe', 'Fen', 'İnkılap', 'İngilizce', 'Din'] as const;
 const MIN_DURATION = 5;
 const MAX_DURATION = 600;
 const DURATION_STEP = 5;
@@ -47,12 +48,26 @@ export function DayEntrySheet({
   onDeletePress,
   initialValues,
 }: DayEntrySheetProps) {
+  const { settings } = useSettings();
+  const subjectDefs = useMemo(
+    () => (settings.activeTrack ? getSubjectsForActiveTrack(settings.activeTrack) : []),
+    [settings.activeTrack]
+  );
+
   const [duration, setDuration] = useState(45);
   const [didTopics, setDidTopics] = useState(true);
   const [didQuestions, setDidQuestions] = useState(false);
   const [questionCounts, setQuestionCounts] = useState<Record<string, string>>({});
   const [durationMessage, setDurationMessage] = useState<string | null>(null);
   const [questionMessage, setQuestionMessage] = useState<string | null>(null);
+
+  const prevTrackRef = React.useRef(settings.activeTrack);
+  useEffect(() => {
+    if (prevTrackRef.current !== settings.activeTrack && visible) {
+      onClose();
+    }
+    prevTrackRef.current = settings.activeTrack;
+  }, [settings.activeTrack, visible, onClose]);
 
   useEffect(() => {
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -297,9 +312,9 @@ export function DayEntrySheet({
         <View style={styles.sheetSection}>
           <Text style={styles.sheetLabel}>SORU SAYISI</Text>
           <View style={styles.questionList}>
-            {SUBJECT_OPTIONS.map((subject) => (
-              <View key={subject} style={styles.questionRow}>
-                <Text style={styles.questionLabel}>{subject}</Text>
+            {subjectDefs.map((s) => (
+              <View key={s.key} style={styles.questionRow}>
+                <Text style={styles.questionLabel}>{s.label}</Text>
                 <View style={styles.questionStepper}>
                   <Pressable
                     accessibilityRole="button"
@@ -307,13 +322,13 @@ export function DayEntrySheet({
                       styles.stepperButton,
                       pressed ? styles.stepperButtonPressed : null,
                     ]}
-                    onPress={() => adjustQuestionCount(subject, -5)}
+                    onPress={() => adjustQuestionCount(s.key, -5)}
                   >
                     <Text style={styles.stepperButtonText}>-</Text>
                   </Pressable>
                   <TextInput
-                    value={questionCounts[subject] ?? ''}
-                    onChangeText={(value) => handleCountChange(subject, value)}
+                    value={questionCounts[s.key] ?? ''}
+                    onChangeText={(value) => handleCountChange(s.key, value)}
                     keyboardType="number-pad"
                     placeholder="—"
                     placeholderTextColor={colors.textMuted}
@@ -325,7 +340,7 @@ export function DayEntrySheet({
                       styles.stepperButton,
                       pressed ? styles.stepperButtonPressed : null,
                     ]}
-                    onPress={() => adjustQuestionCount(subject, 5)}
+                    onPress={() => adjustQuestionCount(s.key, 5)}
                   >
                     <Text style={styles.stepperButtonText}>+</Text>
                   </Pressable>

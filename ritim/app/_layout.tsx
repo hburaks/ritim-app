@@ -2,10 +2,11 @@ import React from 'react';
 import { Stack } from 'expo-router';
 
 import { AuthProvider } from '@/state/auth';
-import { OnboardingProvider, useOnboarding } from '@/state/onboarding';
+import { OnboardingProvider } from '@/state/onboarding';
 import { RecordsProvider } from '@/state/records';
-import { SettingsProvider } from '@/state/settings';
+import { SettingsProvider, useSettings } from '@/state/settings';
 import { TopicsProvider } from '@/state/topics';
+
 export default function RootLayout() {
   return (
     <AuthProvider>
@@ -33,6 +34,9 @@ export default function RootLayout() {
 }
 
 function TopicsProviderBridge({ children }: { children: React.ReactNode }) {
-  const { grade } = useOnboarding();
-  return <TopicsProvider grade={grade ?? '8'}>{children}</TopicsProvider>;
+  const { settings } = useSettings();
+  if (!settings.activeTrack) {
+    return <>{children}</>;
+  }
+  return <TopicsProvider trackId={settings.activeTrack}>{children}</TopicsProvider>;
 }

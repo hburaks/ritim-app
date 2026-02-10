@@ -1,5 +1,9 @@
 ## T2.1 – Home Ekranı Faz-2 UI Güncellemesi
 
+> **Durum: TAMAMLANDI**
+> T2.4 kapsamında "Koça bağlan" satırı tıklanabilir yapıldı (Pressable + router.push('/coach-connect')).
+> Alt metin eklendi: "Davet koduyla koçuna bağlan"
+
 ### Amaç
 Mevcut Faz-1 Home ekranını bozmadan Faz-2 giriş noktalarını eklemek.
 

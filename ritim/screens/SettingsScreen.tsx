@@ -28,6 +28,7 @@ import {
 } from '@/lib/notifications/ritimNotifications';
 import { signOut } from '@/lib/supabase/auth';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
+import { TRACKS, getTrackById, type TrackId } from '@/lib/track/tracks';
 import { useRecords } from '@/state/records';
 import {
   normalizeReminderTime,
@@ -46,6 +47,7 @@ export function SettingsScreen() {
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [disconnectVisible, setDisconnectVisible] = useState(false);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
+  const [trackSheetVisible, setTrackSheetVisible] = useState(false);
 
   const reminderTime = useMemo(
     () => normalizeReminderTime(settings.reminderTime),
@@ -58,6 +60,15 @@ export function SettingsScreen() {
   const accountEmail = useMemo(() => settings.accountEmail?.trim() ?? null, [settings.accountEmail]);
   const coachConnected = settings.coachConnected || !!coachNote || !!coachName;
   const hasAccount = !!accountEmail;
+  const activeTrackLabel = useMemo(
+    () => (settings.activeTrack ? getTrackById(settings.activeTrack).label : '—'),
+    [settings.activeTrack]
+  );
+
+  const handleTrackSelect = (trackId: TrackId) => {
+    updateSettings({ activeTrack: trackId });
+    setTrackSheetVisible(false);
+  };
 
   useEffect(() => {
     if (!deleteMessage) {
@@ -155,6 +166,28 @@ export function SettingsScreen() {
             />
           </IconButton>
           <Text style={styles.title}>Ayarlar</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>ÇALIŞMA ALANI</Text>
+          <SurfaceCard style={styles.card}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setTrackSheetVisible(true)}
+              style={({ pressed }) => [
+                styles.row,
+                pressed ? styles.rowPressed : null,
+              ]}
+            >
+              <View style={styles.rowText}>
+                <Text style={styles.rowTitle}>Aktif Track</Text>
+              </View>
+              <View style={styles.rowRight}>
+                <Text style={styles.rowValue}>{activeTrackLabel}</Text>
+                <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
+              </View>
+            </Pressable>
+          </SurfaceCard>
         </View>
 
         <View style={styles.section}>
@@ -453,6 +486,36 @@ export function SettingsScreen() {
           </Text>
         </View>
       </BottomSheet>
+
+      <BottomSheet
+        visible={trackSheetVisible}
+        onClose={() => setTrackSheetVisible(false)}
+        title="Çalışma Alanı"
+      >
+        <View style={styles.trackList}>
+          {TRACKS.map((track) => {
+            const isActive = settings.activeTrack === track.id;
+            return (
+              <Pressable
+                key={track.id}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isActive }}
+                onPress={() => handleTrackSelect(track.id)}
+                style={({ pressed }) => [
+                  styles.trackOption,
+                  isActive ? styles.trackOptionActive : null,
+                  pressed ? styles.trackOptionPressed : null,
+                ]}
+              >
+                <View style={[styles.trackRadio, isActive ? styles.trackRadioActive : null]} />
+                <Text style={[styles.trackOptionText, isActive ? styles.trackOptionTextActive : null]}>
+                  {track.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -639,5 +702,46 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
+  },
+  trackList: {
+    gap: spacing.sm,
+  },
+  trackOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  trackOptionActive: {
+    borderColor: colors.accentDeep,
+    backgroundColor: colors.accentSoft,
+  },
+  trackOptionPressed: {
+    opacity: 0.85,
+  },
+  trackRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  trackRadioActive: {
+    borderColor: colors.accentDeep,
+    backgroundColor: colors.accentDeep,
+  },
+  trackOptionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  trackOptionTextActive: {
+    color: colors.textPrimary,
   },
 });

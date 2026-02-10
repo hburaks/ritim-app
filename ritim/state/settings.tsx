@@ -8,8 +8,10 @@ import React, {
 } from 'react';
 
 import { loadSettings, saveSettings } from '@/lib/storage/settingsStorage';
+import type { TrackId } from '@/lib/track/tracks';
 
 export type AppSettings = {
+  activeTrack: TrackId | null;
   remindersEnabled: boolean;
   reminderTime: string; // HH:mm
   scheduledNotificationId: string | null;
@@ -42,6 +44,7 @@ const SettingsContext = createContext<SettingsContextValue | undefined>(undefine
 export const DEFAULT_REMINDER_TIME = '20:30';
 
 const DEFAULT_SETTINGS: AppSettings = {
+  activeTrack: null,
   remindersEnabled: false,
   reminderTime: DEFAULT_REMINDER_TIME,
   scheduledNotificationId: null,

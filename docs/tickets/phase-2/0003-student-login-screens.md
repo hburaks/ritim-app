@@ -1,5 +1,8 @@
 ## T2.3 – Koça Bağlan Akışı UI (Kod → Login → İsim)
 
+> **Durum: TAMAMLANDI**
+> T2.3 ve T2.4 birlikte uygulandı. Mock aşaması atlanıp direkt gerçek backend'e bağlandı.
+
 ### Amaç
 Öğrencinin koça bağlanabilmesi için gerekli tüm ekranların ve akışın UI tarafını hazırlamak.
 
@@ -11,156 +14,190 @@
 
 ### Akış Sırası
 
-1. Kullanıcı “Koça bağlan”a tıklar  
-2. Davet kodu ekranı açılır  
-3. Kod doğrulanır (şimdilik mock)  
-4. Kod geçerliyse Google login ekranına yönlendirilir  
-5. Login başarılı olursa “Görünen isim” ekranı açılır  
-6. “Bağlan” ile akış tamamlanır
-
-Bu ticket yalnızca UI + state akışını kapsar.
-Backend doğrulama T2.4’te yapılacaktır.
+1. Kullanıcı "Koça bağlan"a tıklar (Home veya Settings'ten)
+2. Davet kodu ekranı açılır
+3. Kod doğrulanır → `verifyInvite(code)` (Supabase RPC)
+4. Kod geçerliyse Google login ekranına yönlendirilir (zaten login ise atlanır)
+5. Login başarılı olursa "Görünen isim" ekranı açılır
+6. "Bağlan" ile akış tamamlanır → `consumeInvite(code, name)` (Supabase RPC)
 
 ---
 
-## SCREEN 1 – Davet Kodu Girişi
+### Teknik Uygulama
 
-### ASCII Layout
+**Mimari:** Tek ekran (`CoachConnectScreen.tsx`) içinde step-based akış.
+Ayrı route/sayfa yerine `step` state'i kullanılıyor: `'code' | 'login' | 'name' | 'success'`
 
-+----------------------------------+
-| KOÇA BAĞLAN                      |
-+----------------------------------+
-
-Davet kodunu gir
-
-[ __________ ]
-
-[ DEVAM ET ]
+**Dosyalar:**
+- `screens/CoachConnectScreen.tsx` – 4 adımlı akış
+- `lib/supabase/invites.ts` – verifyInvite(), consumeInvite(), getErrorMessage()
+- `lib/supabase/auth.ts` – signInWithGoogle() (expo-auth-session + expo-web-browser)
+- `lib/supabase/client.ts` – Supabase client singleton
+- `state/auth.tsx` – AuthProvider (session context)
 
 ---
+
+## STEP 1 – Davet Kodu Girişi
+
+### Layout
+
+```
++----------------------------------+
+| ← KOÇA BAĞLAN                   |
++----------------------------------+
+
+  [Card]
+  Davet kodunu gir
+  Koçundan aldığın davet kodunu aşağıya yaz.
+  [ __________ ]
+  (hata mesajı)
+
+  [ DEVAM ET ]
+```
 
 ### Davranış
 
-- Input boşken DEVAM ET disabled
-- 6–8 haneli alfanumerik kod formatı
-- “DEVAM ET” basınca:
-  - geçici olarak mock doğrulama yapılır
-  - kod geçerliyse Screen 2’ye geçer
+- Input boşken veya 4 karakterden kısayken DEVAM ET disabled
+- autoCapitalize="characters", maxLength=8
+- "DEVAM ET" basınca → `verifyInvite(code)` çağrılır
+- Loading state: buton ActivityIndicator gösterir
+- Başarılı → session varsa Step 3'e, yoksa Step 2'ye geçer
+- Başarısız → hata mesajı gösterir
 
-### Hata State’leri (Mock)
+### Hata Mesajları
 
-- “Kod geçerli değil”
-- “Bu davet kodunun süresi dolmuş”
-- “Bu davet kodu daha önce kullanılmış”
-- “Koç yeni öğrenci kabul edemiyor”
-
-Bu mesajlar şimdilik UI seviyesinde gösterilecek.
-
----
-
-## SCREEN 2 – Google Login
-
-### ASCII Layout
-
-+----------------------------------+
-| KOÇA BAĞLAN                      |
-+----------------------------------+
-
-Kod doğrulandı ✅
-
-Koçlu mod için giriş yap
-
-[ GOOGLE İLE GİRİŞ YAP ]
+| error_code | UI Mesajı |
+|-----------|-----------|
+| INVALID_CODE | Davet kodu geçerli değil. |
+| EXPIRED | Bu davet kodunun süresi dolmuş. |
+| USED | Bu davet kodu daha önce kullanılmış. |
+| REVOKED | Bu davet kodu iptal edilmiş. |
+| COACH_LIMIT | Koç şu an yeni öğrenci kabul edemiyor. |
+| NETWORK_ERROR | Bağlantı hatası. Lütfen tekrar dene. |
 
 ---
+
+## STEP 2 – Google Login
+
+### Layout
+
+```
++----------------------------------+
+| ← KOÇA BAĞLAN                   |
++----------------------------------+
+
+  [Card]
+  ✓ Kod doğrulandı – Koç: {coach_display_name}
+  ─────
+  Giriş yap
+  Koçlu mod için Google hesabınla giriş yap.
+  (hata mesajı)
+
+  [ GOOGLE İLE GİRİŞ YAP ]
+```
 
 ### Davranış
 
-- Eğer kullanıcı zaten login ise:
-  - Bu ekran otomatik atlanır
-  - Doğrudan Screen 3’e geçilir
-
-- Login başarısız olursa hata mesajı gösterilir
-- Başarılı login sonrası Screen 3 açılır
-
----
-
-## SCREEN 3 – Görünen İsim
-
-### ASCII Layout
-
-+----------------------------------+
-| KOÇA BAĞLAN                      |
-+----------------------------------+
-
-Koçun seni hangi isimle görsün?
-
-[ Hasan ]
-
-[ BAĞLAN ]
+- Eğer kullanıcı zaten login ise (session var):
+  - Bu adım otomatik atlanır (verify sonrası direkt Step 3'e geçer)
+- Butona basınca → `signInWithGoogle()` çağrılır
+  - expo-auth-session ile in-app browser açılır
+  - Google hesap seçimi yapılır
+  - Redirect ile token'lar alınır
+- Login başarısız olursa hata mesajı gösterilir:
+  - `browser_cancel` → "Giriş iptal edildi."
+  - `browser_dismiss` → "Giriş penceresi kapatıldı."
+  - `missing_tokens` → "Giriş bilgileri alınamadı. Lütfen tekrar dene."
+  - Diğer → "Giriş yapılamadı. Lütfen tekrar dene."
+- Başarılı login sonrası Step 3 açılır
 
 ---
+
+## STEP 3 – Görünen İsim
+
+### Layout
+
+```
++----------------------------------+
+| ← KOÇA BAĞLAN                   |
++----------------------------------+
+
+  [Card]
+  Koçun seni hangi isimle görsün?
+  Bu isim yalnızca koçun tarafından görülecek.
+  [ __________ ]
+  (hata mesajı)
+
+  [ BAĞLAN ]
+```
 
 ### Davranış
 
-- İsim alanı boş olamaz
-- “BAĞLAN” basınca:
-
-  Şimdilik mock başarı ekranına gider:
-
----
-
-## SCREEN 4 – Başarı
-
-### ASCII Layout
-
-+----------------------------------+
-| BAĞLANTI TAMAMLANDI              |
-+----------------------------------+
-
-Koçuna başarıyla bağlandın 🎉
-
-Artık ilerlemen koçunla paylaşılacak.
-
-[ ANA SAYFAYA DÖN ]
+- İsim alanı boş olamaz (boşken BAĞLAN disabled)
+- maxLength=40
+- "BAĞLAN" basınca → `consumeInvite(code, displayName)` çağrılır
+- Başarılı:
+  - Settings state güncellenir (coachConnected, coachName, displayName, accountEmail)
+  - Step 4'e geçilir
+- Başarısız → hata mesajı gösterilir (örn: kod bu arada used oldu)
 
 ---
 
-### Sonuç Davranışı
+## STEP 4 – Başarı
 
-- “ANA SAYFAYA DÖN” basınca:
+### Layout
+
+```
++----------------------------------+
+|   BAĞLANTI TAMAMLANDI            |
++----------------------------------+
+
+  [Card]
+  ✓ (checkmark.circle.fill icon)
+  Koçuna başarıyla bağlandın
+  Artık ilerlemen koçunla paylaşılacak.
+
+  [ ANA SAYFAYA DÖN ]
+```
+
+### Davranış
+
+- Geri tuşu yok (sadece ANA SAYFAYA DÖN)
+- "ANA SAYFAYA DÖN" basınca:
+  - `router.dismissAll()` + `router.replace('/')`
   - Home ekranı koçlu moda geçer
-  - Koç notu paneli görünür (mock)
-  - “Koça bağlan” satırı kaybolur
+  - "Koça bağlan" satırı kaybolur
 
 ---
 
-# Teknik Gereksinimler
+## Navigasyon Kuralları
 
-- Akış tamamen navigasyon bazlı olmalı  
-- State machine mantığıyla ilerlemeli  
-- Geri tuşu davranışı düzgün çalışmalı:
-  - Screen 3’ten geri → Screen 2
-  - Screen 2’den geri → Screen 1
-
----
-
-# Done Kriterleri
-
-- Kullanıcı kod girişi ekranını görebiliyor  
-- Kod girip DEVAM ET diyebiliyor  
-- Google login ekranı açılıyor  
-- Login sonrası isim ekranı geliyor  
-- BAĞLAN diyince başarı ekranı açılıyor  
-- Akış sonunda Home koçlu state’e geçiyor (mock data ile)
+- Step 3 → geri → Step 2 (veya Step 1 eğer session zaten vardıysa)
+- Step 2 → geri → Step 1
+- Step 1 → geri → önceki ekran (Settings veya Home)
+- Step 4'te geri tuşu yok
 
 ---
 
-# Kapsam Dışı
+## Done Kriterleri
 
-- Gerçek backend invite doğrulama  
-- Gerçek consume işlemi  
-- Sync  
-- Push
+- [x] Kullanıcı kod girişi ekranını görebiliyor
+- [x] Kod girip DEVAM ET diyebiliyor
+- [x] Verify başarılıysa Google login ekranı açılıyor (zaten login ise atlanıyor)
+- [x] Google OAuth ile giriş yapılabiliyor
+- [x] Login sonrası isim ekranı geliyor
+- [x] BAĞLAN diyince consume çalışıyor
+- [x] Başarı ekranı gösteriliyor
+- [x] Akış sonunda Home koçlu state'e geçiyor
+- [x] Hata mesajları doğru gösteriliyor
 
-Bunlar T2.4 ve sonrası ticketlarda ele alınacak.
+---
+
+## Kapsam Dışı
+
+- daily_records sync
+- coach_notes çekme/gösterme
+- Koç tarafı invite üretme UI
+- Push bildirimleri
+
+Bunlar sonraki ticketlarda ele alınacak.

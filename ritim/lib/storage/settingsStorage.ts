@@ -5,6 +5,7 @@ import type { AppSettings } from '@/state/settings';
 import { SETTINGS_KEY } from './storageKeys';
 
 const DEFAULT_SETTINGS: AppSettings = {
+  activeTrack: null,
   remindersEnabled: false,
   reminderTime: '20:30',
   scheduledNotificationId: null,
@@ -27,6 +28,7 @@ export async function loadSettings(): Promise<AppSettings> {
     }
     const reminderTime = normalizeReminderTime(parsed);
     return {
+      activeTrack: resolveActiveTrack(parsed),
       remindersEnabled: resolveRemindersEnabled(parsed),
       reminderTime,
       scheduledNotificationId: resolveNotificationId(parsed),
@@ -51,6 +53,7 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
 }
 
 type LegacySettingsPayload = Partial<{
+  activeTrack: string;
   remindersEnabled: boolean;
   reminderTime: string;
   scheduledNotificationId: string | null;
@@ -63,6 +66,15 @@ type LegacySettingsPayload = Partial<{
   reminderHour: number;
   reminderMinute: number;
 }>;
+
+const VALID_TRACKS = ['LGS7', 'LGS8', 'TYT', 'AYT'] as const;
+
+function resolveActiveTrack(parsed: LegacySettingsPayload) {
+  if (typeof parsed.activeTrack === 'string' && (VALID_TRACKS as readonly string[]).includes(parsed.activeTrack)) {
+    return parsed.activeTrack as AppSettings['activeTrack'];
+  }
+  return null;
+}
 
 function resolveRemindersEnabled(parsed: LegacySettingsPayload) {
   if (typeof parsed.remindersEnabled === 'boolean') {

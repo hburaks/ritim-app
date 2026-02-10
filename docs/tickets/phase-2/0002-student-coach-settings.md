@@ -1,5 +1,8 @@
 ## T2.2 – Ayarlar Ekranı: Koç Ayarları Bölümü (Faz-2)
 
+> **Durum: TAMAMLANDI**
+> T2.4 kapsamında logout'a Supabase signOut entegrasyonu eklendi.
+
 ### Amaç
 Settings ekranına Faz-2 kapsamında koç yönetimi özelliklerini eklemek.
 Koçsuz kullanıcıda “Koça bağlan” için ikinci bir entrypoint sağlamak; koçlu kullanıcıda görünen isim / koçtan ayrılma / logout akışlarını sunmak.

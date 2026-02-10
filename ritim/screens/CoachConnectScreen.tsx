@@ -22,8 +22,10 @@ import {
   getErrorMessage,
   verifyInvite,
 } from '@/lib/supabase/invites';
+import { syncInitialLast30Days } from '@/lib/supabase/sync';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { useAuth } from '@/state/auth';
+import { useRecords } from '@/state/records';
 import { useSettings } from '@/state/settings';
 
 type Step = 'code' | 'login' | 'name' | 'success';
@@ -43,6 +45,7 @@ export function CoachConnectScreen() {
   const router = useRouter();
   const { updateSettings } = useSettings();
   const { session } = useAuth();
+  const { recordsByDate } = useRecords();
 
   const [step, setStep] = useState<Step>('code');
   const [code, setCode] = useState('');
@@ -113,6 +116,9 @@ export function CoachConnectScreen() {
           displayName,
           accountEmail: session?.user?.email ?? null,
         });
+        if (session) {
+          syncInitialLast30Days(recordsByDate, session).catch(console.warn);
+        }
         setStep('success');
       } else {
         setError(getErrorMessage(result.error_code));

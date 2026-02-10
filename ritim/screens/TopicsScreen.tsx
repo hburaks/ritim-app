@@ -5,9 +5,12 @@ import { useRouter } from 'expo-router';
 
 import { Chip } from '@/components/Chip';
 import { IconButton } from '@/components/IconButton';
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { getTopicsSourceForActiveTrack } from '@/lib/track/selectors';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
+import { useSettings } from '@/state/settings';
 import { TopicMood, TopicSubject, useTopics } from '@/state/topics';
 
 const FILTER_OPTIONS: { label: string; value: TopicSubject }[] = [
@@ -28,6 +31,12 @@ const SUBJECT_LABELS: Record<TopicSubject, string> = {
 
 export function TopicsScreen() {
   const router = useRouter();
+  const { settings } = useSettings();
+  const topicsSource = settings.activeTrack
+    ? getTopicsSourceForActiveTrack(settings.activeTrack)
+    : 'EMPTY';
+  const isEmptyTrack = topicsSource === 'EMPTY';
+
   const { topics, getMood, setMood } = useTopics();
   const [activeFilter, setActiveFilter] = useState<TopicSubject>('MAT');
 
@@ -74,99 +83,115 @@ export function TopicsScreen() {
           </IconButton>
         </View>
 
-        <View style={styles.filterBlock}>
-          <Text style={styles.sectionTitle}>FİLTRE</Text>
-          <View style={styles.filterCapsule}>
-            {FILTER_OPTIONS.map((filter) => (
-              <Chip
-                key={filter.value}
-                label={filter.label}
-                selected={activeFilter === filter.value}
-                onPress={() => setActiveFilter(filter.value)}
-              />
-            ))}
-          </View>
-        </View>
-
-        {hasAnyMood ? null : (
-          <SurfaceCard style={styles.emptyCard} variant="outlined">
-            <Text style={styles.emptyTitle}>Henüz bir his yok</Text>
-            <Text style={styles.emptyHint}>
-              İstersen konuların üstüne durum işaretleyerek ritmini
-              görünür hale getirebilirsin.
+        {isEmptyTrack ? (
+          <SurfaceCard style={styles.emptyTrackCard} variant="outlined">
+            <Text style={styles.emptyTrackTitle}>Bu track için konular yakında.</Text>
+            <Text style={styles.emptyTrackHint}>
+              Şimdilik soru/deneme kayıtlarını kullanabilirsin.
             </Text>
+            <PrimaryButton
+              label="Track'i Değiştir"
+              onPress={() => router.push('/settings')}
+              style={styles.emptyTrackButton}
+            />
           </SurfaceCard>
-        )}
-
-        <SurfaceCard style={styles.listCard}>
-          <View style={styles.listHeader}>
-            <View>
-              <Text style={styles.listTitle}>{listTitle}</Text>
-              <Text style={styles.listSubtitle}>
-                Toplam {filteredTopics.length} konu
-              </Text>
+        ) : (
+          <>
+            <View style={styles.filterBlock}>
+              <Text style={styles.sectionTitle}>FİLTRE</Text>
+              <View style={styles.filterCapsule}>
+                {FILTER_OPTIONS.map((filter) => (
+                  <Chip
+                    key={filter.value}
+                    label={filter.label}
+                    selected={activeFilter === filter.value}
+                    onPress={() => setActiveFilter(filter.value)}
+                  />
+                ))}
+              </View>
             </View>
-          </View>
-          {filteredTopics.length === 0 ? (
-            <Text style={styles.emptyListText}>
-              Bu filtrede konu bulunamadı.
-            </Text>
-          ) : (
-            filteredTopics.map((topic) => {
-              const mood = getMood(topic.id);
-              return (
-                <View
-                  key={topic.id}
-                  style={[
-                    styles.rowBase,
-                  ]}
-                >
-                  <View style={styles.rowText}>
-                    <Text style={styles.rowSubject}>
-                      {SUBJECT_LABELS[topic.subject]}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.rowTitle,
-                        mood === 'GOOD' ? styles.rowTitleGood : null,
-                        mood === 'NONE' ? styles.rowTitleMuted : null,
-                      ]}
-                    >
-                      {topic.title}
-                    </Text>
-                  </View>
-                  <View style={styles.moodActions}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Durumu değiştir: ${getMoodLabel(mood)}`}
-                      onPress={() =>
-                        setMood(topic.id, getNextMood(mood))
-                      }
-                      style={({ pressed }) => [
-                        styles.moodButton,
-                        mood === 'HARD' ? styles.moodButtonHard : null,
-                        mood === 'GOOD' ? styles.moodButtonGood : null,
-                        mood === 'NONE' ? styles.moodButtonNone : null,
-                        pressed ? styles.moodButtonPressed : null,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.moodButtonText,
-                          mood === 'HARD' ? styles.moodButtonTextHard : null,
-                          mood === 'GOOD' ? styles.moodButtonTextGood : null,
-                          mood === 'NONE' ? styles.moodButtonTextNone : null,
-                        ]}
-                      >
-                        {getMoodLabel(mood)}
-                      </Text>
-                    </Pressable>
-                  </View>
+
+            {hasAnyMood ? null : (
+              <SurfaceCard style={styles.emptyCard} variant="outlined">
+                <Text style={styles.emptyTitle}>Henüz bir his yok</Text>
+                <Text style={styles.emptyHint}>
+                  İstersen konuların üstüne durum işaretleyerek ritmini
+                  görünür hale getirebilirsin.
+                </Text>
+              </SurfaceCard>
+            )}
+
+            <SurfaceCard style={styles.listCard}>
+              <View style={styles.listHeader}>
+                <View>
+                  <Text style={styles.listTitle}>{listTitle}</Text>
+                  <Text style={styles.listSubtitle}>
+                    Toplam {filteredTopics.length} konu
+                  </Text>
                 </View>
-              );
-            })
-          )}
-        </SurfaceCard>
+              </View>
+              {filteredTopics.length === 0 ? (
+                <Text style={styles.emptyListText}>
+                  Bu filtrede konu bulunamadı.
+                </Text>
+              ) : (
+                filteredTopics.map((topic) => {
+                  const mood = getMood(topic.id);
+                  return (
+                    <View
+                      key={topic.id}
+                      style={[
+                        styles.rowBase,
+                      ]}
+                    >
+                      <View style={styles.rowText}>
+                        <Text style={styles.rowSubject}>
+                          {SUBJECT_LABELS[topic.subject]}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.rowTitle,
+                            mood === 'GOOD' ? styles.rowTitleGood : null,
+                            mood === 'NONE' ? styles.rowTitleMuted : null,
+                          ]}
+                        >
+                          {topic.title}
+                        </Text>
+                      </View>
+                      <View style={styles.moodActions}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Durumu değiştir: ${getMoodLabel(mood)}`}
+                          onPress={() =>
+                            setMood(topic.id, getNextMood(mood))
+                          }
+                          style={({ pressed }) => [
+                            styles.moodButton,
+                            mood === 'HARD' ? styles.moodButtonHard : null,
+                            mood === 'GOOD' ? styles.moodButtonGood : null,
+                            mood === 'NONE' ? styles.moodButtonNone : null,
+                            pressed ? styles.moodButtonPressed : null,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.moodButtonText,
+                              mood === 'HARD' ? styles.moodButtonTextHard : null,
+                              mood === 'GOOD' ? styles.moodButtonTextGood : null,
+                              mood === 'NONE' ? styles.moodButtonTextNone : null,
+                            ]}
+                          >
+                            {getMoodLabel(mood)}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </SurfaceCard>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -335,5 +360,27 @@ const styles = StyleSheet.create({
   },
   moodButtonTextNone: {
     color: colors.textSecondary,
+  },
+  emptyTrackCard: {
+    padding: spacing.xl,
+    gap: spacing.md,
+    alignItems: 'center',
+  },
+  emptyTrackTitle: {
+    color: colors.textStrong,
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  emptyTrackHint: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  emptyTrackButton: {
+    marginTop: spacing.sm,
+    alignSelf: 'center',
+    paddingHorizontal: spacing.xl,
   },
 });

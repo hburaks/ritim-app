@@ -6,27 +6,28 @@ import { useRouter } from 'expo-router';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, spacing } from '@/lib/theme/tokens';
+import { TRACKS, type TrackId } from '@/lib/track/tracks';
 import { useOnboarding } from '@/state/onboarding';
-
-const GRADE_OPTIONS = ['7', '8'] as const;
+import { useSettings } from '@/state/settings';
 
 export function Onboarding1Screen() {
   const router = useRouter();
-  const { completed, hydrated, grade, setGrade } = useOnboarding();
-  const [selectedGrade, setSelectedGrade] = useState<(typeof GRADE_OPTIONS)[number] | null>(
-    grade ?? null
+  const { completed, hydrated } = useOnboarding();
+  const { settings, updateSettings } = useSettings();
+  const [selectedTrack, setSelectedTrack] = useState<TrackId | null>(
+    settings.activeTrack
   );
 
-  const handleSelectGrade = (grade: (typeof GRADE_OPTIONS)[number]) => {
-    setSelectedGrade(grade);
-    setGrade(grade);
+  const handleSelectTrack = (trackId: TrackId) => {
+    setSelectedTrack(trackId);
+    updateSettings({ activeTrack: trackId });
   };
 
   useEffect(() => {
-    if (grade) {
-      setSelectedGrade(grade);
+    if (settings.activeTrack) {
+      setSelectedTrack(settings.activeTrack);
     }
-  }, [grade]);
+  }, [settings.activeTrack]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -46,14 +47,15 @@ export function Onboarding1Screen() {
           </Text>
 
           <View style={styles.section}>
-            <Text style={styles.subtitle}>Kaçıncı sınıftasın? (7/8)</Text>
+            <Text style={styles.subtitle}>Çalışma alanını seç</Text>
+            <Text style={styles.sectionHint}>Bu, dersleri ve konuları belirler.</Text>
             <View style={styles.chipRow}>
-              {GRADE_OPTIONS.map((grade) => (
+              {TRACKS.map((track) => (
                 <Chip
-                  key={grade}
-                  label={grade}
-                  selected={selectedGrade === grade}
-                  onPress={() => handleSelectGrade(grade)}
+                  key={track.id}
+                  label={track.shortLabel}
+                  selected={selectedTrack === track.id}
+                  onPress={() => handleSelectTrack(track.id)}
                 />
               ))}
             </View>
@@ -66,7 +68,7 @@ export function Onboarding1Screen() {
 
         <PrimaryButton
           label="Devam"
-          disabled={!selectedGrade}
+          disabled={!selectedTrack}
           onPress={() => router.push('/onboarding-2')}
         />
       </View>
@@ -101,8 +103,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  sectionHint: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '500',
+  },
   chipRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   helper: {

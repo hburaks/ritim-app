@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -8,7 +8,8 @@ import { IconButton } from '@/components/IconButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
-import { getWeekDates, parseDateKey, useRecords } from '@/state/records';
+import { getWeekDates, getWeekStartKey, parseDateKey, useRecords } from '@/state/records';
+import { useSettings } from '@/state/settings';
 
 const INITIAL_WEEK_COUNT = 6;
 const WEEK_PAGE_SIZE = 4;
@@ -29,17 +30,57 @@ function formatDateRange(startDateKey: string): string {
 
 export function DaysScreen() {
   const router = useRouter();
-  const { getWeekDots, getRecordByDate, selectHasAnyRecords, todayKey } = useRecords();
+  const { settings } = useSettings();
+  const { getWeekDots, getTrackRange, selectHasAnyRecords, todayKey } = useRecords();
+  const activeTrack = settings.activeTrack;
+  const trackRange = useMemo(
+    () => (activeTrack ? getTrackRange(activeTrack) : { minDate: undefined, maxDate: undefined }),
+    [activeTrack, getTrackRange]
+  );
+  const totalWeeksForTrack = useMemo(() => {
+    if (!activeTrack) {
+      return 0;
+    }
+    if (!trackRange.minDate) {
+      return INITIAL_WEEK_COUNT;
+    }
+    const currentWeekStart = getWeekStartKey(todayKey);
+    const oldestWeekStart = getWeekStartKey(trackRange.minDate);
+    return getWeekDiffInclusive(oldestWeekStart, currentWeekStart);
+  }, [activeTrack, todayKey, trackRange.minDate]);
+  const initialVisibleWeeks = useMemo(
+    () => Math.min(INITIAL_WEEK_COUNT, Math.max(0, totalWeeksForTrack)),
+    [totalWeeksForTrack]
+  );
   const [weekCount, setWeekCount] = useState(INITIAL_WEEK_COUNT);
+  const prevTrackRef = React.useRef(activeTrack);
+  const activeDayIndex = useMemo(() => {
+    const weekday = parseDateKey(todayKey).getDay();
+    return weekday === 0 ? 6 : weekday - 1;
+  }, [todayKey]);
+
+  useEffect(() => {
+    if (prevTrackRef.current !== activeTrack) {
+      setWeekCount(initialVisibleWeeks);
+      prevTrackRef.current = activeTrack;
+    }
+  }, [activeTrack, initialVisibleWeeks]);
+
+  useEffect(() => {
+    setWeekCount((current) => Math.min(current, totalWeeksForTrack));
+  }, [totalWeeksForTrack]);
 
   const weeks = useMemo(() => {
+    if (!activeTrack || weekCount <= 0) {
+      return [];
+    }
     const baseDate = parseDateKey(todayKey);
     return Array.from({ length: weekCount }, (_, offset) => {
       const reference = new Date(baseDate);
       reference.setDate(baseDate.getDate() - offset * 7);
       const dates = getWeekDates(reference);
       const startDate = dates[0];
-      const dots = getWeekDots(startDate);
+      const dots = getWeekDots(activeTrack, startDate);
       const filledCount = dots.filter(Boolean).length;
 
       return {
@@ -49,17 +90,25 @@ export function DaysScreen() {
         filledCount,
       };
     });
-  }, [getRecordByDate, getWeekDots, todayKey, weekCount]);
+  }, [activeTrack, getWeekDots, todayKey, weekCount]);
 
   const navigateToWeek = (weekStart: string) => {
     router.push({ pathname: '/week/[weekStart]', params: { weekStart } });
   };
 
   const handleEndReached = useCallback(() => {
-    setWeekCount((current) => current + WEEK_PAGE_SIZE);
-  }, []);
+    if (!activeTrack) {
+      return;
+    }
+    setWeekCount((current) => {
+      if (current >= totalWeeksForTrack) {
+        return current;
+      }
+      return Math.min(totalWeeksForTrack, current + WEEK_PAGE_SIZE);
+    });
+  }, [activeTrack, totalWeeksForTrack]);
 
-  const hasAnyRecords = selectHasAnyRecords();
+  const hasAnyRecords = activeTrack ? selectHasAnyRecords(activeTrack) : false;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -86,14 +135,26 @@ export function DaysScreen() {
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.4}
           ListHeaderComponent={
-            hasAnyRecords ? null : (
+            activeTrack ? (
+              hasAnyRecords ? null : (
+                <SurfaceCard style={styles.emptyCard}>
+                  <View style={styles.emptyIconWrap}>
+                    <IconSymbol name="calendar" size={28} color={colors.textMuted} />
+                  </View>
+                  <Text style={styles.emptyTitle}>Henüz kayıt yok</Text>
+                  <Text style={styles.emptyText}>
+                    İlk kaydını eklemek için ana ekrana dön.
+                  </Text>
+                </SurfaceCard>
+              )
+            ) : (
               <SurfaceCard style={styles.emptyCard}>
                 <View style={styles.emptyIconWrap}>
                   <IconSymbol name="calendar" size={28} color={colors.textMuted} />
                 </View>
-                <Text style={styles.emptyTitle}>Henüz kayıt yok</Text>
+                <Text style={styles.emptyTitle}>Track seçimi bekleniyor</Text>
                 <Text style={styles.emptyText}>
-                  İlk kaydını eklemek için ana ekrana dön.
+                  Kayıtları görebilmek için bir çalışma alanı seç.
                 </Text>
               </SurfaceCard>
             )
@@ -122,14 +183,14 @@ export function DaysScreen() {
 
                   <View style={styles.dotCapsule}>
                     <DotRow
-                      activeIndex={index === 0 ? new Date().getDay() === 0 ? 6 : new Date().getDay() - 1 : -1}
+                      activeIndex={index === 0 ? activeDayIndex : -1}
                       filled={item.dots}
                       size={12}
                       gap={6}
                       pressablePadding={2}
                       activeColor={colors.textPrimary}
                       inactiveColor={colors.dotInactive}
-                      highlightIndex={index === 0 ? (new Date().getDay() === 0 ? 6 : new Date().getDay() - 1) : undefined}
+                      highlightIndex={index === 0 ? activeDayIndex : undefined}
                       highlightColor={colors.dotHighlight}
                     />
                   </View>
@@ -159,6 +220,14 @@ export function DaysScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+function getWeekDiffInclusive(startWeek: string, endWeek: string): number {
+  const start = parseDateKey(startWeek);
+  const end = parseDateKey(endWeek);
+  const diffMs = end.getTime() - start.getTime();
+  const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+  return Math.max(1, diffWeeks + 1);
 }
 
 const styles = StyleSheet.create({

@@ -9,10 +9,12 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { useOnboarding } from '@/state/onboarding';
 import { DailyRecord, getTodayDateString, useRecords } from '@/state/records';
+import { useSettings } from '@/state/settings';
 
 export function Onboarding2Screen() {
   const router = useRouter();
   const { completed, hydrated, setCompleted } = useOnboarding();
+  const { settings } = useSettings();
   const { upsertRecord } = useRecords();
   const [sheetVisible, setSheetVisible] = useState(false);
 
@@ -31,9 +33,13 @@ export function Onboarding2Screen() {
     questionCount?: number;
     subjectBreakdown?: Record<string, number>;
   }) => {
+    if (!settings.activeTrack) {
+      return;
+    }
     const today = getTodayDateString();
     const record: DailyRecord = {
       date: today,
+      trackId: settings.activeTrack,
       ...values,
     };
     upsertRecord(record);
@@ -60,6 +66,7 @@ export function Onboarding2Screen() {
 
         <PrimaryButton
           label="İlk günü dolduralım"
+          disabled={!settings.activeTrack}
           onPress={() => setSheetVisible(true)}
         />
       </View>
@@ -68,6 +75,7 @@ export function Onboarding2Screen() {
         visible={sheetVisible}
         onClose={() => setSheetVisible(false)}
         title="İlk gün"
+        trackId={settings.activeTrack}
         onSave={handleSave}
       />
     </SafeAreaView>

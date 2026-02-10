@@ -16,6 +16,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, spacing } from '@/lib/theme/tokens';
 import { getSubjectsForActiveTrack } from '@/lib/track/selectors';
+import type { TrackId } from '@/lib/track/tracks';
 import type { DailyRecord } from '@/state/records';
 import { useSettings } from '@/state/settings';
 
@@ -34,6 +35,7 @@ type DayEntrySheetProps = {
   title: string;
   onClose: () => void;
   onCloseComplete?: () => void;
+  trackId?: TrackId | null;
   onSave: (values: DayEntryValues) => void;
   onDeletePress?: () => void;
   initialValues?: Partial<DayEntryValues>;
@@ -44,14 +46,16 @@ export function DayEntrySheet({
   title,
   onClose,
   onCloseComplete,
+  trackId,
   onSave,
   onDeletePress,
   initialValues,
 }: DayEntrySheetProps) {
   const { settings } = useSettings();
+  const effectiveTrack = trackId ?? settings.activeTrack;
   const subjectDefs = useMemo(
-    () => (settings.activeTrack ? getSubjectsForActiveTrack(settings.activeTrack) : []),
-    [settings.activeTrack]
+    () => (effectiveTrack ? getSubjectsForActiveTrack(effectiveTrack) : []),
+    [effectiveTrack]
   );
 
   const [duration, setDuration] = useState(45);
@@ -68,6 +72,12 @@ export function DayEntrySheet({
     }
     prevTrackRef.current = settings.activeTrack;
   }, [settings.activeTrack, visible, onClose]);
+
+  useEffect(() => {
+    if (visible && !effectiveTrack) {
+      onClose();
+    }
+  }, [effectiveTrack, onClose, visible]);
 
   useEffect(() => {
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {

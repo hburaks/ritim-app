@@ -45,7 +45,7 @@ export function CoachConnectScreen() {
   const router = useRouter();
   const { updateSettings } = useSettings();
   const { session } = useAuth();
-  const { recordsByDate } = useRecords();
+  const { records } = useRecords();
 
   const [step, setStep] = useState<Step>('code');
   const [code, setCode] = useState('');
@@ -117,7 +117,7 @@ export function CoachConnectScreen() {
           accountEmail: session?.user?.email ?? null,
         });
         if (session) {
-          syncInitialLast30Days(recordsByDate, session).catch(console.warn);
+          syncInitialLast30Days(records, session).catch(console.warn);
         }
         setStep('success');
       } else {

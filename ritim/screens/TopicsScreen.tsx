@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -8,26 +8,10 @@ import { IconButton } from '@/components/IconButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { getTopicsSourceForActiveTrack } from '@/lib/track/selectors';
+import { getSubjectsForActiveTrack, getTopicsSourceForActiveTrack } from '@/lib/track/selectors';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { useSettings } from '@/state/settings';
-import { TopicMood, TopicSubject, useTopics } from '@/state/topics';
-
-const FILTER_OPTIONS: { label: string; value: TopicSubject }[] = [
-  { label: 'Mat', value: 'MAT' },
-  { label: 'Türkçe', value: 'TURK' },
-  { label: 'Fen', value: 'FEN' },
-  { label: 'İnkılap', value: 'INK' },
-  { label: 'Din', value: 'DIN' },
-];
-
-const SUBJECT_LABELS: Record<TopicSubject, string> = {
-  MAT: 'Matematik',
-  TURK: 'Türkçe',
-  FEN: 'Fen Bilimleri',
-  INK: 'İnkılap',
-  DIN: 'Din Kültürü',
-};
+import { TopicMood, useTopics } from '@/state/topics';
 
 export function TopicsScreen() {
   const router = useRouter();
@@ -38,17 +22,40 @@ export function TopicsScreen() {
   const isEmptyTrack = topicsSource === 'EMPTY';
 
   const { topics, getMood, setMood } = useTopics();
-  const [activeFilter, setActiveFilter] = useState<TopicSubject>('MAT');
+  const subjectDefs = useMemo(
+    () => (settings.activeTrack ? getSubjectsForActiveTrack(settings.activeTrack) : []),
+    [settings.activeTrack]
+  );
+  const [activeSubjectKey, setActiveSubjectKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveSubjectKey(subjectDefs[0]?.key ?? null);
+  }, [subjectDefs]);
+
+  const activeSubject = useMemo(() => {
+    if (!activeSubjectKey) {
+      return null;
+    }
+    return subjectDefs.find((subject) => subject.key === activeSubjectKey) ?? null;
+  }, [activeSubjectKey, subjectDefs]);
 
   const filteredTopics = useMemo(() => {
-    return topics.filter((topic) => topic.subject === activeFilter);
-  }, [topics, activeFilter]);
+    if (!activeSubjectKey) {
+      return [];
+    }
+    return topics.filter((topic) => topic.subjectKey === activeSubjectKey);
+  }, [topics, activeSubjectKey]);
 
-  const listTitle = `${SUBJECT_LABELS[activeFilter]} Konuları`;
+  const listTitle = activeSubject ? `${activeSubject.label} Konuları` : 'Konular';
 
   const hasAnyMood = useMemo(() => {
     return topics.some((topic) => getMood(topic.id) !== 'NONE');
   }, [topics, getMood]);
+  const hasTopicsForActiveSubject = filteredTopics.length > 0;
+  const subjectLabelByKey = useMemo(
+    () => Object.fromEntries(subjectDefs.map((subject) => [subject.key, subject.label] as const)),
+    [subjectDefs]
+  );
 
   const getNextMood = (current: TopicMood): TopicMood => {
     if (current === 'NONE') return 'GOOD';
@@ -100,18 +107,18 @@ export function TopicsScreen() {
             <View style={styles.filterBlock}>
               <Text style={styles.sectionTitle}>FİLTRE</Text>
               <View style={styles.filterCapsule}>
-                {FILTER_OPTIONS.map((filter) => (
+                {subjectDefs.map((subject) => (
                   <Chip
-                    key={filter.value}
-                    label={filter.label}
-                    selected={activeFilter === filter.value}
-                    onPress={() => setActiveFilter(filter.value)}
+                    key={subject.key}
+                    label={subject.label}
+                    selected={activeSubjectKey === subject.key}
+                    onPress={() => setActiveSubjectKey(subject.key)}
                   />
                 ))}
               </View>
             </View>
 
-            {hasAnyMood ? null : (
+            {hasAnyMood || !hasTopicsForActiveSubject ? null : (
               <SurfaceCard style={styles.emptyCard} variant="outlined">
                 <Text style={styles.emptyTitle}>Henüz bir his yok</Text>
                 <Text style={styles.emptyHint}>
@@ -130,11 +137,7 @@ export function TopicsScreen() {
                   </Text>
                 </View>
               </View>
-              {filteredTopics.length === 0 ? (
-                <Text style={styles.emptyListText}>
-                  Bu filtrede konu bulunamadı.
-                </Text>
-              ) : (
+              {hasTopicsForActiveSubject ? (
                 filteredTopics.map((topic) => {
                   const mood = getMood(topic.id);
                   return (
@@ -146,7 +149,7 @@ export function TopicsScreen() {
                     >
                       <View style={styles.rowText}>
                         <Text style={styles.rowSubject}>
-                          {SUBJECT_LABELS[topic.subject]}
+                          {subjectLabelByKey[topic.subjectKey] ?? topic.subject}
                         </Text>
                         <Text
                           style={[
@@ -188,6 +191,13 @@ export function TopicsScreen() {
                     </View>
                   );
                 })
+              ) : (
+                <>
+                  <Text style={styles.emptyListText}>Bu dersin konuları yakında.</Text>
+                  <Text style={styles.emptyListHint}>
+                    Şimdilik kayıt ekranından süre/soru girişi yapabilirsin.
+                  </Text>
+                </>
               )}
             </SurfaceCard>
           </>
@@ -241,10 +251,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.full,
-    backgroundColor: colors.capsule,
     justifyContent: 'center',
   },
   emptyCard: {
@@ -285,6 +291,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
+  },
+  emptyListHint: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
   },
   rowBase: {
     flexDirection: 'row',

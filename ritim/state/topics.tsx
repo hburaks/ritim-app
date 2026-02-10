@@ -9,14 +9,17 @@ import React, {
 
 import { loadTopics, saveTopics } from '@/lib/storage/topicsStorage';
 import { getTopicsSourceForActiveTrack } from '@/lib/track/selectors';
-import type { TrackId } from '@/lib/track/tracks';
+import type { SubjectDef, TrackId } from '@/lib/track/tracks';
 
 export type TopicSubject = 'MAT' | 'TURK' | 'FEN' | 'INK' | 'DIN';
 export type TopicMood = 'GOOD' | 'HARD' | 'NONE';
+export type SubjectKey = SubjectDef['key'];
 
 export type TopicItem = {
   id: string;
+  // Deprecated: kept for backward compatibility with older UI code paths.
   subject: TopicSubject;
+  subjectKey: SubjectKey;
   title: string;
 };
 
@@ -46,29 +49,29 @@ const INITIAL_STATE: TopicsState = {
 };
 
 const TOPICS_7: TopicItem[] = [
-  { id: 'mat-7-1', subject: 'MAT', title: 'Tam sayilar' },
-  { id: 'mat-7-2', subject: 'MAT', title: 'Kesirler' },
-  { id: 'turk-7-1', subject: 'TURK', title: 'Fiiller' },
-  { id: 'turk-7-2', subject: 'TURK', title: 'Cümlede anlam' },
-  { id: 'fen-7-1', subject: 'FEN', title: 'Hücre ve bolunmeler' },
-  { id: 'fen-7-2', subject: 'FEN', title: 'Kuvvet ve enerji' },
-  { id: 'ink-7-1', subject: 'INK', title: 'Milli Mucadele' },
-  { id: 'ink-7-2', subject: 'INK', title: 'Ataturkculuk' },
-  { id: 'din-7-1', subject: 'DIN', title: 'Inanc esaslari' },
-  { id: 'din-7-2', subject: 'DIN', title: 'Ibadet ve dua' },
+  { id: 'mat-7-1', subject: 'MAT', subjectKey: 'mat', title: 'Tam sayilar' },
+  { id: 'mat-7-2', subject: 'MAT', subjectKey: 'mat', title: 'Kesirler' },
+  { id: 'turk-7-1', subject: 'TURK', subjectKey: 'turkce', title: 'Fiiller' },
+  { id: 'turk-7-2', subject: 'TURK', subjectKey: 'turkce', title: 'Cümlede anlam' },
+  { id: 'fen-7-1', subject: 'FEN', subjectKey: 'fen', title: 'Hücre ve bolunmeler' },
+  { id: 'fen-7-2', subject: 'FEN', subjectKey: 'fen', title: 'Kuvvet ve enerji' },
+  { id: 'ink-7-1', subject: 'INK', subjectKey: 'inkilap', title: 'Milli Mucadele' },
+  { id: 'ink-7-2', subject: 'INK', subjectKey: 'inkilap', title: 'Ataturkculuk' },
+  { id: 'din-7-1', subject: 'DIN', subjectKey: 'din', title: 'Inanc esaslari' },
+  { id: 'din-7-2', subject: 'DIN', subjectKey: 'din', title: 'Ibadet ve dua' },
 ];
 
 const TOPICS_8: TopicItem[] = [
-  { id: 'mat-8-1', subject: 'MAT', title: 'Carpanlar ve katlar' },
-  { id: 'mat-8-2', subject: 'MAT', title: 'Denklemler' },
-  { id: 'turk-8-1', subject: 'TURK', title: 'Paragraf' },
-  { id: 'turk-8-2', subject: 'TURK', title: 'Fiilimsi' },
-  { id: 'fen-8-1', subject: 'FEN', title: 'DNA ve genetik' },
-  { id: 'fen-8-2', subject: 'FEN', title: 'Basinc' },
-  { id: 'ink-8-1', subject: 'INK', title: 'Inkilap tarihi' },
-  { id: 'ink-8-2', subject: 'INK', title: 'Ataturk ilkeleri' },
-  { id: 'din-8-1', subject: 'DIN', title: 'Ahlak ve erdem' },
-  { id: 'din-8-2', subject: 'DIN', title: 'Hak ve sorumluluk' },
+  { id: 'mat-8-1', subject: 'MAT', subjectKey: 'mat', title: 'Carpanlar ve katlar' },
+  { id: 'mat-8-2', subject: 'MAT', subjectKey: 'mat', title: 'Denklemler' },
+  { id: 'turk-8-1', subject: 'TURK', subjectKey: 'turkce', title: 'Paragraf' },
+  { id: 'turk-8-2', subject: 'TURK', subjectKey: 'turkce', title: 'Fiilimsi' },
+  { id: 'fen-8-1', subject: 'FEN', subjectKey: 'fen', title: 'DNA ve genetik' },
+  { id: 'fen-8-2', subject: 'FEN', subjectKey: 'fen', title: 'Basinc' },
+  { id: 'ink-8-1', subject: 'INK', subjectKey: 'inkilap', title: 'Inkilap tarihi' },
+  { id: 'ink-8-2', subject: 'INK', subjectKey: 'inkilap', title: 'Ataturk ilkeleri' },
+  { id: 'din-8-1', subject: 'DIN', subjectKey: 'din', title: 'Ahlak ve erdem' },
+  { id: 'din-8-2', subject: 'DIN', subjectKey: 'din', title: 'Hak ve sorumluluk' },
 ];
 
 function topicsReducer(state: TopicsState, action: TopicsAction): TopicsState {

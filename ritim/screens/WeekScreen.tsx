@@ -11,6 +11,8 @@ import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { ActivityType, DailyRecord, getWeekDates, useRecords } from '@/state/records';
+import { useSettings } from '@/state/settings';
+import type { TrackId } from '@/lib/track/tracks';
 
 const DAY_LABELS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'] as const;
 const DAY_LONG_LABELS = [
@@ -31,19 +33,24 @@ const MONTH_NAMES = [
 export function WeekScreen() {
   const router = useRouter();
   const { weekStart } = useLocalSearchParams<{ weekStart?: string }>();
-  const { getWeekDots, getRecordByDate, upsertRecord, removeRecord } = useRecords();
+  const { settings } = useSettings();
+  const { getWeekDots, getRecord, upsertRecord, removeRecord } = useRecords();
   const [editVisible, setEditVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [confirmVisible, setConfirmVisible] = useState(false);
-  const pendingDeleteRef = useRef<string | null>(null);
+  const pendingDeleteRef = useRef<{ trackId: TrackId; date: string } | null>(null);
   const openConfirmAfterCloseRef = useRef(false);
+  const activeTrack = settings.activeTrack;
 
   const weekStartDate = typeof weekStart === 'string' ? weekStart : undefined;
   const weekDates = useMemo(() => {
     const reference = weekStartDate ? parseDateString(weekStartDate) : new Date();
     return getWeekDates(reference);
   }, [weekStartDate]);
-  const weekDots = useMemo(() => getWeekDots(weekStartDate), [getWeekDots, weekStartDate]);
+  const weekDots = useMemo(
+    () => (activeTrack ? getWeekDots(activeTrack, weekStartDate) : Array(7).fill(false)),
+    [activeTrack, getWeekDots, weekStartDate]
+  );
 
   const weekLabel = useMemo(() => {
     const start = parseDateString(weekDates[0]);
@@ -55,7 +62,7 @@ export function WeekScreen() {
 
   const rows = useMemo(() => {
     return weekDates.map((date, index) => {
-      const record = getRecordByDate(date);
+      const record = activeTrack ? getRecord(activeTrack, date) : undefined;
       return {
         date,
         label: DAY_LABELS[index] ?? '',
@@ -64,7 +71,7 @@ export function WeekScreen() {
         record,
       };
     });
-  }, [getRecordByDate, weekDates]);
+  }, [activeTrack, getRecord, weekDates]);
 
   const stats = useMemo(() => {
     let totalMinutes = 0;
@@ -80,9 +87,12 @@ export function WeekScreen() {
     return { totalMinutes, totalQuestions, filledCount };
   }, [rows]);
 
-  const selectedRecord = selectedDate ? getRecordByDate(selectedDate) : undefined;
+  const selectedRecord = selectedDate && activeTrack ? getRecord(activeTrack, selectedDate) : undefined;
 
   const handleRowPress = (date: string) => {
+    if (!activeTrack) {
+      return;
+    }
     setSelectedDate(date);
     setEditVisible(true);
   };
@@ -96,8 +106,13 @@ export function WeekScreen() {
     if (!selectedDate) {
       return;
     }
+    const trackId = selectedRecord?.trackId ?? activeTrack;
+    if (!trackId) {
+      return;
+    }
     upsertRecord({
       date: selectedDate,
+      trackId,
       ...values,
     });
     setEditVisible(false);
@@ -105,10 +120,13 @@ export function WeekScreen() {
   };
 
   const handleDeleteRequest = () => {
-    if (!selectedDate) {
+    if (!selectedRecord) {
       return;
     }
-    pendingDeleteRef.current = selectedDate;
+    pendingDeleteRef.current = {
+      trackId: selectedRecord.trackId,
+      date: selectedRecord.date,
+    };
     openConfirmAfterCloseRef.current = true;
     setEditVisible(false);
   };
@@ -247,6 +265,7 @@ export function WeekScreen() {
         }}
         onCloseComplete={handleSheetCloseComplete}
         title={detailTitle || 'Gün'}
+        trackId={selectedRecord?.trackId ?? activeTrack}
         onSave={handleSave}
         initialValues={selectedRecord}
         onDeletePress={selectedRecord && selectedDate ? handleDeleteRequest : undefined}
@@ -265,7 +284,7 @@ export function WeekScreen() {
         }}
         onConfirm={() => {
           if (pendingDeleteRef.current) {
-            removeRecord(pendingDeleteRef.current);
+            removeRecord(pendingDeleteRef.current.trackId, pendingDeleteRef.current.date);
           }
           setConfirmVisible(false);
           setEditVisible(false);

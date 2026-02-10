@@ -9,12 +9,13 @@ import React, {
 import { AppState } from 'react-native';
 
 import { rescheduleAllBasedOnRecords } from '@/lib/notifications/ritimNotifications';
-import { loadRecords, saveRecords } from '@/lib/storage/recordsStorage';
+import { loadRecords, makeRecordKey, saveRecords } from '@/lib/storage/recordsStorage';
 import {
   deleteRecordFromCloud,
   shouldSync,
   syncRecord,
 } from '@/lib/supabase/sync';
+import type { TrackId } from '@/lib/track/tracks';
 import { useAuth } from '@/state/auth';
 import { parseReminderTime, useSettings } from '@/state/settings';
 
@@ -22,6 +23,7 @@ export type ActivityType = 'KONU' | 'SORU' | 'KARISIK';
 
 export type DailyRecord = {
   date: string; // YYYY-MM-DD
+  trackId: TrackId;
   focusMinutes: number;
   activityType: ActivityType;
   questionCount?: number;
@@ -29,7 +31,7 @@ export type DailyRecord = {
 };
 
 type RecordsState = {
-  recordsByDate: Record<string, DailyRecord>;
+  recordsByKey: Record<string, DailyRecord>;
   todayKey: string;
   hydrated: boolean;
 };
@@ -37,19 +39,22 @@ type RecordsState = {
 type RecordsAction =
   | { type: 'hydrate'; payload: Record<string, DailyRecord> }
   | { type: 'upsert'; payload: DailyRecord }
-  | { type: 'remove'; payload: { date: string } }
+  | { type: 'remove'; payload: { trackId: TrackId; date: string } }
   | { type: 'set-today'; payload: string };
 
 type RecordsContextValue = {
   records: DailyRecord[];
-  recordsByDate: Record<string, DailyRecord>;
+  recordsByKey: Record<string, DailyRecord>;
   upsertRecord: (record: DailyRecord) => void;
-  removeRecord: (date: string) => void;
-  getRecordByDate: (date: string) => DailyRecord | undefined;
-  selectTodayRecord: (dateKey?: string) => DailyRecord | undefined;
-  selectWeekDots: (weekStartKey?: string) => boolean[];
-  selectHasAnyRecords: () => boolean;
-  getWeekDots: (weekStartKey?: string) => boolean[];
+  removeRecord: (trackId: TrackId, date: string) => void;
+  getRecord: (trackId: TrackId, date: string) => DailyRecord | undefined;
+  selectTodayRecord: (trackId: TrackId, dateKey?: string) => DailyRecord | undefined;
+  selectWeekDots: (trackId: TrackId, weekStartKey?: string) => boolean[];
+  selectHasAnyRecords: (trackId?: TrackId) => boolean;
+  listRecordsByTrack: (trackId: TrackId) => DailyRecord[];
+  getTrackRange: (trackId: TrackId) => { minDate?: string; maxDate?: string };
+  getTrackStreak: (trackId: TrackId, fromDateKey?: string) => number;
+  getWeekDots: (trackId: TrackId, weekStartKey?: string) => boolean[];
   todayKey: string;
   refreshTodayKey: () => string;
   hydrated: boolean;
@@ -58,7 +63,7 @@ type RecordsContextValue = {
 const RecordsContext = createContext<RecordsContextValue | undefined>(undefined);
 
 const INITIAL_STATE: RecordsState = {
-  recordsByDate: {},
+  recordsByKey: {},
   todayKey: getDateKey(),
   hydrated: false,
 };
@@ -68,29 +73,31 @@ function recordsReducer(state: RecordsState, action: RecordsAction): RecordsStat
     case 'hydrate':
       return {
         ...state,
-        recordsByDate: action.payload,
+        recordsByKey: action.payload,
         hydrated: true,
       };
     case 'upsert': {
       const record = action.payload;
+      const key = makeRecordKey(record.trackId, record.date);
       return {
         ...state,
-        recordsByDate: {
-          ...state.recordsByDate,
-          [record.date]: record,
+        recordsByKey: {
+          ...state.recordsByKey,
+          [key]: record,
         },
       };
     }
     case 'remove': {
-      const { date } = action.payload;
-      if (!state.recordsByDate[date]) {
+      const { trackId, date } = action.payload;
+      const key = makeRecordKey(trackId, date);
+      if (!state.recordsByKey[key]) {
         return state;
       }
-      const next = { ...state.recordsByDate };
-      delete next[date];
+      const next = { ...state.recordsByKey };
+      delete next[key];
       return {
         ...state,
-        recordsByDate: next,
+        recordsByKey: next,
       };
     }
     case 'set-today': {
@@ -134,18 +141,24 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const records = useMemo(() => {
-    return Object.values(state.recordsByDate).sort((a, b) => b.date.localeCompare(a.date));
-  }, [state.recordsByDate]);
+    return Object.values(state.recordsByKey).sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) {
+        return dateCompare;
+      }
+      return a.trackId.localeCompare(b.trackId);
+    });
+  }, [state.recordsByKey]);
 
   useEffect(() => {
     if (!state.hydrated) {
       return;
     }
     const handle = setTimeout(() => {
-      saveRecords(state.recordsByDate);
+      saveRecords(state.recordsByKey);
     }, 400);
     return () => clearTimeout(handle);
-  }, [state.recordsByDate, state.hydrated]);
+  }, [state.recordsByKey, state.hydrated]);
 
   useEffect(() => {
     if (!state.hydrated || !settingsHydrated) {
@@ -203,53 +216,110 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
   );
 
   const removeRecord = useCallback(
-    (date: string) => {
-      dispatch({ type: 'remove', payload: { date } });
+    (trackId: TrackId, date: string) => {
+      dispatch({ type: 'remove', payload: { trackId, date } });
       if (shouldSync(date, settings.coachConnected, session)) {
-        deleteRecordFromCloud(date, session!).catch(console.warn);
+        deleteRecordFromCloud(date, trackId, session!).catch(console.warn);
       }
     },
     [settings.coachConnected, session],
   );
 
-  const getRecordByDate = useCallback(
-    (date: string) => {
-      return state.recordsByDate[date];
+  const getRecord = useCallback(
+    (trackId: TrackId, date: string) => {
+      return state.recordsByKey[makeRecordKey(trackId, date)];
     },
-    [state.recordsByDate]
+    [state.recordsByKey],
   );
 
   const selectTodayRecord = useCallback(
-    (dateKey?: string) => {
+    (trackId: TrackId, dateKey?: string) => {
       const key = dateKey ?? state.todayKey;
-      return state.recordsByDate[key];
+      return state.recordsByKey[makeRecordKey(trackId, key)];
     },
-    [state.recordsByDate, state.todayKey]
+    [state.recordsByKey, state.todayKey],
   );
 
   const selectWeekDots = useCallback(
-    (weekStartKey?: string) => {
+    (trackId: TrackId, weekStartKey?: string) => {
       const startDate = resolveWeekStart(weekStartKey ?? state.todayKey);
       const weekDates = getWeekDates(startDate);
-      return weekDates.map((date) => Boolean(state.recordsByDate[date]));
+      return weekDates.map((date) => Boolean(state.recordsByKey[makeRecordKey(trackId, date)]));
     },
-    [state.recordsByDate, state.todayKey]
+    [state.recordsByKey, state.todayKey],
   );
 
-  const selectHasAnyRecords = useCallback(() => {
-    return Object.keys(state.recordsByDate).length > 0;
-  }, [state.recordsByDate]);
+  const selectHasAnyRecords = useCallback(
+    (trackId?: TrackId) => {
+      if (!trackId) {
+        return Object.keys(state.recordsByKey).length > 0;
+      }
+      return Object.values(state.recordsByKey).some((record) => record.trackId === trackId);
+    },
+    [state.recordsByKey],
+  );
+
+  const listRecordsByTrack = useCallback(
+    (trackId: TrackId) => {
+      return records.filter((record) => record.trackId === trackId);
+    },
+    [records],
+  );
+
+  const getTrackRange = useCallback(
+    (trackId: TrackId) => {
+      let minDate: string | undefined;
+      let maxDate: string | undefined;
+
+      for (const record of Object.values(state.recordsByKey)) {
+        if (record.trackId !== trackId) {
+          continue;
+        }
+        if (!minDate || record.date < minDate) {
+          minDate = record.date;
+        }
+        if (!maxDate || record.date > maxDate) {
+          maxDate = record.date;
+        }
+      }
+
+      return { minDate, maxDate };
+    },
+    [state.recordsByKey],
+  );
+
+  const getTrackStreak = useCallback(
+    (trackId: TrackId, fromDateKey?: string) => {
+      let streak = 0;
+      const cursor = parseDateKey(fromDateKey ?? state.todayKey);
+
+      while (streak < 365) {
+        const dateKey = getDateKey(cursor);
+        if (!state.recordsByKey[makeRecordKey(trackId, dateKey)]) {
+          break;
+        }
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+
+      return streak;
+    },
+    [state.recordsByKey, state.todayKey],
+  );
 
   const value = useMemo(
     () => ({
       records,
-      recordsByDate: state.recordsByDate,
+      recordsByKey: state.recordsByKey,
       upsertRecord,
       removeRecord,
-      getRecordByDate,
+      getRecord,
       selectTodayRecord,
       selectWeekDots,
       selectHasAnyRecords,
+      listRecordsByTrack,
+      getTrackRange,
+      getTrackStreak,
       getWeekDots: selectWeekDots,
       todayKey: state.todayKey,
       refreshTodayKey,
@@ -257,13 +327,16 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       records,
-      state.recordsByDate,
+      state.recordsByKey,
       upsertRecord,
       removeRecord,
-      getRecordByDate,
+      getRecord,
       selectTodayRecord,
       selectWeekDots,
       selectHasAnyRecords,
+      listRecordsByTrack,
+      getTrackRange,
+      getTrackStreak,
       state.todayKey,
       refreshTodayKey,
       state.hydrated,
@@ -319,6 +392,12 @@ export function getWeekDates(referenceDate: Date | string = new Date()) {
     date.setDate(start.getDate() + index);
     return getDateKey(date);
   });
+}
+
+export function getWeekStartKey(referenceDate: Date | string = new Date()) {
+  const resolved =
+    referenceDate instanceof Date ? referenceDate : parseDateKey(referenceDate);
+  return getDateKey(getStartOfWeek(resolved));
 }
 
 function resolveWeekStart(weekStartDate?: Date | string) {

@@ -8,6 +8,7 @@ const SYNC_WINDOW_DAYS = 30;
 
 type CloudRecord = {
   user_id: string;
+  track_id: string;
   date: string;
   focus_minutes: number;
   activity_type: string;
@@ -34,6 +35,7 @@ export function shouldSync(
 function toCloudRecord(record: DailyRecord, userId: string): CloudRecord {
   return {
     user_id: userId,
+    track_id: record.trackId,
     date: record.date,
     focus_minutes: record.focusMinutes,
     activity_type: record.activityType,
@@ -50,7 +52,7 @@ export async function syncRecord(
   const cloud = toCloudRecord(record, session.user.id);
   const { error } = await supabase
     .from('daily_records')
-    .upsert(cloud, { onConflict: 'user_id,date' });
+    .upsert(cloud, { onConflict: 'user_id,track_id,date' });
 
   if (error) {
     console.warn('[sync] upsert failed:', error.message);
@@ -59,12 +61,14 @@ export async function syncRecord(
 
 export async function deleteRecordFromCloud(
   date: string,
+  trackId: string,
   session: Session,
 ): Promise<void> {
   const { error } = await supabase
     .from('daily_records')
     .delete()
     .eq('user_id', session.user.id)
+    .eq('track_id', trackId)
     .eq('date', date);
 
   if (error) {
@@ -73,7 +77,7 @@ export async function deleteRecordFromCloud(
 }
 
 export async function syncInitialLast30Days(
-  recordsByDate: Record<string, DailyRecord>,
+  records: DailyRecord[],
   session: Session,
 ): Promise<void> {
   const now = new Date();
@@ -81,7 +85,7 @@ export async function syncInitialLast30Days(
   cutoff.setDate(cutoff.getDate() - SYNC_WINDOW_DAYS);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-  const cloudRecords = Object.values(recordsByDate)
+  const cloudRecords = records
     .filter((r) => r.date >= cutoffStr)
     .map((r) => toCloudRecord(r, session.user.id));
 
@@ -89,7 +93,7 @@ export async function syncInitialLast30Days(
 
   const { error } = await supabase
     .from('daily_records')
-    .upsert(cloudRecords, { onConflict: 'user_id,date' });
+    .upsert(cloudRecords, { onConflict: 'user_id,track_id,date' });
 
   if (error) {
     console.warn('[sync] initial sync failed:', error.message);

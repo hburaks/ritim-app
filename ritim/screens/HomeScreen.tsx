@@ -12,6 +12,7 @@ import { IconButton } from '@/components/IconButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import type { TrackId } from '@/lib/track/tracks';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { useOnboarding } from '@/state/onboarding';
 import {
@@ -35,12 +36,16 @@ export function HomeScreen() {
   } = useRecords();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
-  const pendingDeleteRef = useRef<string | null>(null);
+  const pendingDeleteRef = useRef<{ trackId: TrackId; date: string } | null>(null);
   const openConfirmAfterCloseRef = useRef(false);
 
   const today = todayKey;
-  const todayRecord = selectTodayRecord(todayKey);
-  const weekDots = useMemo(() => selectWeekDots(todayKey), [selectWeekDots, todayKey]);
+  const activeTrack = settings.activeTrack;
+  const todayRecord = activeTrack ? selectTodayRecord(activeTrack, todayKey) : undefined;
+  const weekDots = useMemo(
+    () => (activeTrack ? selectWeekDots(activeTrack, todayKey) : Array(7).fill(false)),
+    [activeTrack, selectWeekDots, todayKey]
+  );
   const weekDates = useMemo(() => getWeekDates(todayKey), [todayKey]);
   const todayIndex = useMemo(() => weekDates.indexOf(today), [today, weekDates]);
   const coachNote = useMemo(() => settings.coachNote?.trim() ?? null, [settings.coachNote]);
@@ -95,8 +100,13 @@ export function HomeScreen() {
     questionCount?: number;
     subjectBreakdown?: Record<string, number>;
   }) => {
+    const trackId = todayRecord?.trackId ?? activeTrack;
+    if (!trackId) {
+      return;
+    }
     upsertRecord({
       date: today,
+      trackId,
       ...values,
     });
     setSheetVisible(false);
@@ -108,7 +118,10 @@ export function HomeScreen() {
       return;
     }
     setSheetVisible(false);
-    pendingDeleteRef.current = todayRecord.date;
+    pendingDeleteRef.current = {
+      trackId: todayRecord.trackId,
+      date: todayRecord.date,
+    };
     openConfirmAfterCloseRef.current = true;
   };
 
@@ -191,7 +204,12 @@ export function HomeScreen() {
             )}
             <PrimaryButton
               label={todayRecord ? 'KAYDI DÜZENLE' : 'BUGÜN ODAKLANDIM'}
-              onPress={() => setSheetVisible(true)}
+              onPress={() => {
+                if (!todayRecord && !activeTrack) {
+                  return;
+                }
+                setSheetVisible(true);
+              }}
               style={styles.cardButton}
               textStyle={styles.cardButtonText}
             />
@@ -253,6 +271,7 @@ export function HomeScreen() {
         onClose={() => setSheetVisible(false)}
         onCloseComplete={handleSheetCloseComplete}
         title={todayRecord ? 'Bugün' : 'Odak Girişi'}
+        trackId={todayRecord?.trackId ?? activeTrack}
         onSave={handleSave}
         initialValues={todayRecord}
         onDeletePress={todayRecord ? handleDeleteRequest : undefined}
@@ -271,7 +290,7 @@ export function HomeScreen() {
         }}
         onConfirm={() => {
           if (pendingDeleteRef.current) {
-            removeRecord(pendingDeleteRef.current);
+            removeRecord(pendingDeleteRef.current.trackId, pendingDeleteRef.current.date);
           } else {
             Alert.alert('Silinecek kayıt yok', 'Bugün için kayıt bulunamadı.');
           }

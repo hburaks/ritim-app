@@ -17,6 +17,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { signInWithGoogle } from '@/lib/supabase/auth';
+import { supabase } from '@/lib/supabase/client';
 import {
   consumeInvite,
   getErrorMessage,
@@ -53,13 +54,14 @@ export function CoachConnectScreen() {
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [nameBackTarget, setNameBackTarget] = useState<'code' | 'login'>('login');
 
   const handleBack = () => {
     setError(null);
     if (step === 'login') {
       setStep('code');
     } else if (step === 'name') {
-      setStep('login');
+      setStep(nameBackTarget);
     } else {
       router.back();
     }
@@ -69,13 +71,17 @@ export function CoachConnectScreen() {
     setError(null);
     setLoading(true);
     try {
-      const result = await verifyInvite(code);
+      const normalizedCode = code.trim().toUpperCase();
+      setCode(normalizedCode);
+      const result = await verifyInvite(normalizedCode);
       if (result.ok) {
         setVerifiedCoach({ id: result.coach_id, displayName: result.coach_display_name });
         // Zaten login ise login adımını atla
         if (session) {
+          setNameBackTarget('code');
           setStep('name');
         } else {
+          setNameBackTarget('login');
           setStep('login');
         }
       } else {
@@ -91,8 +97,8 @@ export function CoachConnectScreen() {
     setLoading(true);
     try {
       const result = await signInWithGoogle();
-      console.log('[CoachConnect] Google login result:', JSON.stringify(result, null, 2));
       if (result.success) {
+        setNameBackTarget('login');
         setStep('name');
       } else {
         const errorKey = typeof result.error === 'string' ? result.error : '';
@@ -108,16 +114,23 @@ export function CoachConnectScreen() {
     setError(null);
     setLoading(true);
     try {
-      const result = await consumeInvite(code, displayName);
+      const normalizedCode = code.trim().toUpperCase();
+      const trimmedDisplayName = displayName.trim();
+      const result = await consumeInvite(normalizedCode, trimmedDisplayName);
       if (result.ok) {
+        const {
+          data: { session: freshSession },
+        } = await supabase.auth.getSession();
+        const effectiveSession = freshSession ?? session;
+
         updateSettings({
           coachConnected: true,
           coachName: verifiedCoach?.displayName ?? null,
-          displayName,
-          accountEmail: session?.user?.email ?? null,
+          displayName: trimmedDisplayName,
+          accountEmail: effectiveSession?.user?.email ?? null,
         });
-        if (session) {
-          syncInitialLast30Days(records, session).catch(console.warn);
+        if (effectiveSession) {
+          syncInitialLast30Days(records, effectiveSession).catch(console.warn);
         }
         setStep('success');
       } else {

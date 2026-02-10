@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -14,7 +14,6 @@ import { ActivityType, DailyRecord, getWeekDates, useRecords } from '@/state/rec
 import { useSettings } from '@/state/settings';
 import type { TrackId } from '@/lib/track/tracks';
 
-const DAY_LABELS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'] as const;
 const DAY_LONG_LABELS = [
   'Pazartesi',
   'Salı',
@@ -34,7 +33,7 @@ export function WeekScreen() {
   const router = useRouter();
   const { weekStart } = useLocalSearchParams<{ weekStart?: string }>();
   const { settings } = useSettings();
-  const { getWeekDots, getRecord, upsertRecord, removeRecord } = useRecords();
+  const { getWeekDots, getRecord, upsertRecord, removeRecord, todayKey } = useRecords();
   const [editVisible, setEditVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -42,7 +41,12 @@ export function WeekScreen() {
   const openConfirmAfterCloseRef = useRef(false);
   const activeTrack = settings.activeTrack;
 
-  const weekStartDate = typeof weekStart === 'string' ? weekStart : undefined;
+  const weekStartDate = useMemo(() => {
+    if (typeof weekStart !== 'string') {
+      return undefined;
+    }
+    return isValidDateKey(weekStart) ? weekStart : undefined;
+  }, [weekStart]);
   const weekDates = useMemo(() => {
     const reference = weekStartDate ? parseDateString(weekStartDate) : new Date();
     return getWeekDates(reference);
@@ -65,13 +69,16 @@ export function WeekScreen() {
       const record = activeTrack ? getRecord(activeTrack, date) : undefined;
       return {
         date,
-        label: DAY_LABELS[index] ?? '',
         longLabel: DAY_LONG_LABELS[index] ?? '',
         dayNumber: parseDateString(date).getDate(),
         record,
       };
     });
   }, [activeTrack, getRecord, weekDates]);
+  const highlightedDayIndex = useMemo(() => {
+    const index = weekDates.indexOf(todayKey);
+    return index >= 0 ? index : -1;
+  }, [todayKey, weekDates]);
 
   const stats = useMemo(() => {
     let totalMinutes = 0;
@@ -165,18 +172,20 @@ export function WeekScreen() {
           <Text style={styles.sectionLabel}>HAFTALIK RİTİM</Text>
           <View style={styles.dotCapsule}>
             <DotRow
-              activeIndex={-1}
+              activeIndex={highlightedDayIndex}
               filled={weekDots}
               size={14}
               gap={6}
               pressablePadding={2}
               activeColor={colors.textPrimary}
               inactiveColor={colors.dotInactive}
+              highlightIndex={highlightedDayIndex >= 0 ? highlightedDayIndex : undefined}
+              highlightColor={colors.dotHighlight}
             />
           </View>
         </View>
 
-        {stats.filledCount > 0 && (
+        {stats.filledCount > 0 ? (
           <View style={styles.statsRow}>
             <SurfaceCard style={styles.statCard}>
               <Text style={styles.statValue}>{stats.filledCount}/7</Text>
@@ -193,6 +202,11 @@ export function WeekScreen() {
               </SurfaceCard>
             )}
           </View>
+        ) : (
+          <SurfaceCard style={styles.emptyWeekCard} variant="flat">
+            <Text style={styles.emptyWeekTitle}>Bu haftada henüz kayıt yok</Text>
+            <Text style={styles.emptyWeekText}>Bir güne dokunup ilk kaydını ekleyebilirsin.</Text>
+          </SurfaceCard>
         )}
 
         <View style={styles.daysSection}>
@@ -200,6 +214,7 @@ export function WeekScreen() {
           <View style={styles.daysList}>
             {rows.map((row) => {
               const hasRecord = Boolean(row.record);
+              const isToday = row.date === todayKey;
               return (
                 <Pressable
                   key={row.date}
@@ -210,7 +225,7 @@ export function WeekScreen() {
                   ]}
                 >
                   <SurfaceCard
-                    style={styles.dayCard}
+                    style={[styles.dayCard, isToday ? styles.dayCardToday : null]}
                     variant={hasRecord ? 'default' : 'flat'}
                   >
                     <View style={styles.dayLeft}>
@@ -220,6 +235,7 @@ export function WeekScreen() {
                           hasRecord
                             ? styles.dayIndicatorFilled
                             : styles.dayIndicatorEmpty,
+                          isToday ? styles.dayIndicatorToday : null,
                         ]}
                       >
                         <Text
@@ -234,7 +250,9 @@ export function WeekScreen() {
                         </Text>
                       </View>
                       <View style={styles.dayInfo}>
-                        <Text style={styles.dayLabel}>{row.longLabel}</Text>
+                        <Text style={[styles.dayLabel, isToday ? styles.dayLabelToday : null]}>
+                          {row.longLabel}
+                        </Text>
                         {row.record ? (
                           <Text style={styles.daySummary}>
                             {formatSummary(row.record)}
@@ -318,6 +336,24 @@ function parseDateString(dateString: string) {
   return parsed;
 }
 
+function formatDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function isValidDateKey(dateString: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    return false;
+  }
+  const parsed = parseDateString(dateString);
+  if (Number.isNaN(parsed.getTime())) {
+    return false;
+  }
+  return formatDateKey(parsed) === dateString;
+}
+
 function getQuestionTotal(record: { questionCount?: number; subjectBreakdown?: Record<string, number> }) {
   if (record.questionCount !== undefined) {
     return record.questionCount;
@@ -393,6 +429,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.4,
   },
+  emptyWeekCard: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    gap: spacing.xs,
+  },
+  emptyWeekTitle: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  emptyWeekText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
   daysSection: {
     gap: spacing.md,
   },
@@ -405,6 +457,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
+  },
+  dayCardToday: {
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
   dayRowPressed: {
     opacity: 0.75,
@@ -427,6 +483,10 @@ const styles = StyleSheet.create({
   dayIndicatorEmpty: {
     backgroundColor: colors.capsule,
   },
+  dayIndicatorToday: {
+    borderWidth: 1,
+    borderColor: colors.accentDeep,
+  },
   dayIndicatorText: {
     fontSize: 13,
     fontWeight: '700',
@@ -444,6 +504,9 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '600',
+  },
+  dayLabelToday: {
+    color: colors.accentDeep,
   },
   daySummary: {
     color: colors.textSecondary,

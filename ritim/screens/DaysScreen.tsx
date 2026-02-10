@@ -31,8 +31,9 @@ function formatDateRange(startDateKey: string): string {
 export function DaysScreen() {
   const router = useRouter();
   const { settings } = useSettings();
-  const { getWeekDots, getTrackRange, selectHasAnyRecords, todayKey } = useRecords();
+  const { getRecord, getWeekDots, getTrackRange, selectHasAnyRecords, todayKey } = useRecords();
   const activeTrack = settings.activeTrack;
+  const hasAnyRecords = activeTrack ? selectHasAnyRecords(activeTrack) : false;
   const trackRange = useMemo(
     () => (activeTrack ? getTrackRange(activeTrack) : { minDate: undefined, maxDate: undefined }),
     [activeTrack, getTrackRange]
@@ -71,7 +72,7 @@ export function DaysScreen() {
   }, [totalWeeksForTrack]);
 
   const weeks = useMemo(() => {
-    if (!activeTrack || weekCount <= 0) {
+    if (!activeTrack || weekCount <= 0 || !hasAnyRecords) {
       return [];
     }
     const baseDate = parseDateKey(todayKey);
@@ -82,15 +83,28 @@ export function DaysScreen() {
       const startDate = dates[0];
       const dots = getWeekDots(activeTrack, startDate);
       const filledCount = dots.filter(Boolean).length;
+      let totalMinutes = 0;
+      let totalQuestions = 0;
+
+      for (const date of dates) {
+        const record = getRecord(activeTrack, date);
+        if (!record) {
+          continue;
+        }
+        totalMinutes += record.focusMinutes;
+        totalQuestions += getQuestionTotal(record);
+      }
 
       return {
         offset,
         startDate,
         dots,
         filledCount,
+        totalMinutes,
+        totalQuestions,
       };
     });
-  }, [activeTrack, getWeekDots, todayKey, weekCount]);
+  }, [activeTrack, getRecord, getWeekDots, hasAnyRecords, todayKey, weekCount]);
 
   const navigateToWeek = (weekStart: string) => {
     router.push({ pathname: '/week/[weekStart]', params: { weekStart } });
@@ -107,8 +121,6 @@ export function DaysScreen() {
       return Math.min(totalWeeksForTrack, current + WEEK_PAGE_SIZE);
     });
   }, [activeTrack, totalWeeksForTrack]);
-
-  const hasAnyRecords = activeTrack ? selectHasAnyRecords(activeTrack) : false;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -172,10 +184,12 @@ export function DaysScreen() {
                   pressed ? styles.weekBlockPressed : null,
                 ]}
               >
-                <SurfaceCard style={styles.weekBlock}>
+                <SurfaceCard style={[styles.weekBlock, index === 0 ? styles.currentWeekBlock : null]}>
                   <View style={styles.weekHeader}>
                     <View style={styles.weekHeaderLeft}>
-                      <Text style={styles.weekLabel}>{label}</Text>
+                      <Text style={[styles.weekLabel, index === 0 ? styles.currentWeekLabel : null]}>
+                        {label}
+                      </Text>
                       <Text style={styles.weekDateRange}>{dateRange}</Text>
                     </View>
                     <IconSymbol name="chevron.right" size={14} color={colors.iconMuted} />
@@ -205,9 +219,14 @@ export function DaysScreen() {
                           ]}
                         />
                       </View>
-                      <Text style={styles.weekFilledText}>
-                        {item.filledCount}/7 gün
-                      </Text>
+                      <View style={styles.weekMetaRow}>
+                        <Text style={styles.weekFilledText}>{item.filledCount}/7 gün</Text>
+                        <Text style={styles.weekSummaryText}>
+                          {item.totalQuestions > 0
+                            ? `${item.totalMinutes} dk · ${item.totalQuestions} soru`
+                            : `${item.totalMinutes} dk`}
+                        </Text>
+                      </View>
                     </View>
                   ) : (
                     <Text style={styles.weekEmptyText}>Kayıt yok</Text>
@@ -228,6 +247,16 @@ function getWeekDiffInclusive(startWeek: string, endWeek: string): number {
   const diffMs = end.getTime() - start.getTime();
   const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
   return Math.max(1, diffWeeks + 1);
+}
+
+function getQuestionTotal(record: { questionCount?: number; subjectBreakdown?: Record<string, number> }) {
+  if (record.questionCount !== undefined) {
+    return record.questionCount;
+  }
+  if (!record.subjectBreakdown) {
+    return 0;
+  }
+  return Object.values(record.subjectBreakdown).reduce((sum, value) => sum + value, 0);
 }
 
 const styles = StyleSheet.create({
@@ -290,6 +319,10 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
   },
+  currentWeekBlock: {
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
   weekBlockPressed: {
     opacity: 0.75,
   },
@@ -307,6 +340,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
   },
+  currentWeekLabel: {
+    color: colors.accentDeep,
+  },
   weekDateRange: {
     color: colors.textPrimary,
     fontSize: 15,
@@ -320,6 +356,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.capsule,
   },
   weekFooter: {
+    gap: spacing.sm,
+  },
+  weekMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.sm,
   },
   progressBarBg: {
@@ -337,6 +379,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
+  },
+  weekSummaryText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '500',
   },
   weekEmptyText: {
     color: colors.textMuted,

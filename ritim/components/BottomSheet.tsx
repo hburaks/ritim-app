@@ -5,6 +5,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -19,8 +20,6 @@ type BottomSheetProps = {
   children?: React.ReactNode;
 };
 
-const SHEET_HEIGHT = 360;
-
 export function BottomSheet({
   visible,
   onClose,
@@ -29,8 +28,10 @@ export function BottomSheet({
   headerRight,
   children,
 }: BottomSheetProps) {
+  const { height: windowHeight } = useWindowDimensions();
+  const hiddenOffset = Math.max(420, windowHeight);
   const [rendered, setRendered] = useState(visible);
-  const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+  const translateY = useRef(new Animated.Value(hiddenOffset)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
   const openAnimation = useMemo(
@@ -54,7 +55,7 @@ export function BottomSheet({
     () =>
       Animated.parallel([
         Animated.timing(translateY, {
-          toValue: SHEET_HEIGHT,
+          toValue: hiddenOffset,
           duration: 220,
           useNativeDriver: true,
         }),
@@ -64,8 +65,14 @@ export function BottomSheet({
           useNativeDriver: true,
         }),
       ]),
-    [overlayOpacity, translateY]
+    [hiddenOffset, overlayOpacity, translateY]
   );
+
+  useEffect(() => {
+    if (!visible && !rendered) {
+      translateY.setValue(hiddenOffset);
+    }
+  }, [hiddenOffset, rendered, translateY, visible]);
 
   useEffect(() => {
     if (visible) {

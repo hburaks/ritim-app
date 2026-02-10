@@ -38,7 +38,6 @@ type RecordsAction =
   | { type: 'hydrate'; payload: Record<string, DailyRecord> }
   | { type: 'upsert'; payload: DailyRecord }
   | { type: 'remove'; payload: { date: string } }
-  | { type: 'clear' }
   | { type: 'set-today'; payload: string };
 
 type RecordsContextValue = {
@@ -46,7 +45,6 @@ type RecordsContextValue = {
   recordsByDate: Record<string, DailyRecord>;
   upsertRecord: (record: DailyRecord) => void;
   removeRecord: (date: string) => void;
-  clearRecords: () => void;
   getRecordByDate: (date: string) => DailyRecord | undefined;
   selectTodayRecord: (dateKey?: string) => DailyRecord | undefined;
   selectWeekDots: (weekStartKey?: string) => boolean[];
@@ -95,11 +93,6 @@ function recordsReducer(state: RecordsState, action: RecordsAction): RecordsStat
         recordsByDate: next,
       };
     }
-    case 'clear':
-      return {
-        ...state,
-        recordsByDate: {},
-      };
     case 'set-today': {
       if (action.payload === state.todayKey) {
         return state;
@@ -219,10 +212,6 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
     [settings.coachConnected, session],
   );
 
-  const clearRecords = useCallback(() => {
-    dispatch({ type: 'clear' });
-  }, []);
-
   const getRecordByDate = useCallback(
     (date: string) => {
       return state.recordsByDate[date];
@@ -257,7 +246,6 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
       recordsByDate: state.recordsByDate,
       upsertRecord,
       removeRecord,
-      clearRecords,
       getRecordByDate,
       selectTodayRecord,
       selectWeekDots,
@@ -272,7 +260,6 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
       state.recordsByDate,
       upsertRecord,
       removeRecord,
-      clearRecords,
       getRecordByDate,
       selectTodayRecord,
       selectWeekDots,

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -29,7 +29,6 @@ import {
 import { signOut } from '@/lib/supabase/auth';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { TRACKS, getTrackById, type TrackId } from '@/lib/track/tracks';
-import { useRecords } from '@/state/records';
 import {
   normalizeReminderTime,
   useSettings,
@@ -38,12 +37,9 @@ import {
 export function SettingsScreen() {
   const router = useRouter();
   const { settings, updateSettings } = useSettings();
-  const { clearRecords } = useRecords();
-  const [confirmVisible, setConfirmVisible] = useState(false);
   const [timeSheetVisible, setTimeSheetVisible] = useState(false);
   const [displayNameSheetVisible, setDisplayNameSheetVisible] = useState(false);
   const [permissionMessage, setPermissionMessage] = useState<string | null>(null);
-  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [disconnectVisible, setDisconnectVisible] = useState(false);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
@@ -69,14 +65,6 @@ export function SettingsScreen() {
     updateSettings({ activeTrack: trackId });
     setTrackSheetVisible(false);
   };
-
-  useEffect(() => {
-    if (!deleteMessage) {
-      return undefined;
-    }
-    const handle = setTimeout(() => setDeleteMessage(null), 2500);
-    return () => clearTimeout(handle);
-  }, [deleteMessage]);
 
   const versionLabel =
     Constants.expoConfig?.version ??
@@ -343,28 +331,6 @@ export function SettingsScreen() {
           ) : null}
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>VERİLER</Text>
-          <SurfaceCard style={styles.card}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setConfirmVisible(true)}
-              style={({ pressed }) => [
-                styles.row,
-                pressed ? styles.rowPressed : null,
-              ]}
-            >
-              <View style={styles.rowText}>
-                <Text style={styles.rowTitle}>Tüm kayıtları sil</Text>
-                <Text style={styles.rowSubtitle}>Bu işlem geri alınamaz.</Text>
-              </View>
-              <IconSymbol name="trash" size={18} color={colors.textSecondary} />
-            </Pressable>
-          </SurfaceCard>
-          {deleteMessage ? (
-            <Text style={styles.helperText}>{deleteMessage}</Text>
-          ) : null}
-        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>HAKKINDA</Text>
@@ -390,20 +356,6 @@ export function SettingsScreen() {
           </SurfaceCard>
         </View>
       </ScrollView>
-
-      <ConfirmDialog
-        visible={confirmVisible}
-        title="Tüm kayıtları sil?"
-        message="Tüm kayıtların bu cihazdan silinecek."
-        confirmLabel="Sil"
-        cancelLabel="Vazgeç"
-        onCancel={() => setConfirmVisible(false)}
-        onConfirm={() => {
-          clearRecords();
-          setConfirmVisible(false);
-          setDeleteMessage('Tüm kayıtlar silindi.');
-        }}
-      />
 
       <ConfirmDialog
         visible={disconnectVisible}

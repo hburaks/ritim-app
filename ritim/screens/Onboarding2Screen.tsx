@@ -8,7 +8,7 @@ import { DotRow } from '@/components/DotRow';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { useOnboarding } from '@/state/onboarding';
-import { DailyRecord, getTodayDateString, useRecords } from '@/state/records';
+import { getTodayDateString, useRecords } from '@/state/records';
 import { useSettings } from '@/state/settings';
 
 export function Onboarding2Screen() {
@@ -37,7 +37,7 @@ export function Onboarding2Screen() {
       return;
     }
     const today = getTodayDateString();
-    const record: DailyRecord = {
+    const record = {
       date: today,
       trackId: settings.activeTrack,
       ...values,

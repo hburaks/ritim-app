@@ -15,6 +15,9 @@ type CloudRecord = {
   activity_type: string;
   question_count: number | null;
   subject_breakdown: Record<string, number> | null;
+  is_deleted: boolean;
+  deleted_at: string | null;
+  created_at: string;
   updated_at: string;
 };
 
@@ -42,7 +45,10 @@ function toCloudRecord(record: DailyRecord, userId: string): CloudRecord {
     activity_type: record.activityType,
     question_count: record.questionCount ?? null,
     subject_breakdown: record.subjectBreakdown ?? null,
-    updated_at: new Date().toISOString(),
+    is_deleted: record.isDeleted,
+    deleted_at: record.deletedAtMs ? new Date(record.deletedAtMs).toISOString() : null,
+    created_at: new Date(record.createdAtMs).toISOString(),
+    updated_at: new Date(record.updatedAtMs).toISOString(),
   };
 }
 
@@ -57,23 +63,6 @@ export async function syncRecord(
 
   if (error) {
     console.warn('[sync] upsert failed:', error.message);
-  }
-}
-
-export async function deleteRecordFromCloud(
-  date: string,
-  trackId: string,
-  session: Session,
-): Promise<void> {
-  const { error } = await supabase
-    .from('daily_records')
-    .delete()
-    .eq('user_id', session.user.id)
-    .eq('track_id', trackId)
-    .eq('date', date);
-
-  if (error) {
-    console.warn('[sync] delete failed:', error.message);
   }
 }
 

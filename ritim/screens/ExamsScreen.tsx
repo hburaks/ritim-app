@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { Chip } from '@/components/Chip';
 import { IconButton } from '@/components/IconButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { BottomSheet } from '@/components/BottomSheet';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
@@ -34,14 +35,14 @@ const MONTH_NAMES = [
 
 const TYPE_FILTERS: Array<{ value: ExamTypeFilter; label: string }> = [
   { value: 'ALL', label: 'Hepsi' },
-  { value: 'FULL', label: 'FULL' },
+  { value: 'FULL', label: 'Genel' },
   { value: 'BRANCH', label: 'Branş' },
 ];
 
 const SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
-  { value: 'DATE_DESC', label: 'Yeni' },
-  { value: 'DATE_ASC', label: 'Eski' },
-  { value: 'NET_DESC', label: 'Net' },
+  { value: 'DATE_DESC', label: 'Tarih: Yeni → Eski' },
+  { value: 'DATE_ASC', label: 'Tarih: Eski → Yeni' },
+  { value: 'NET_DESC', label: 'Net: Yüksek → Düşük' },
 ];
 
 export function ExamsScreen() {
@@ -54,6 +55,7 @@ export function ExamsScreen() {
   const [typeFilter, setTypeFilter] = useState<ExamTypeFilter>('ALL');
   const [branchSubjectFilter, setBranchSubjectFilter] = useState<string | null>(null);
   const [sortOption, setSortOption] = useState<SortOption>('DATE_DESC');
+  const [sortSheetVisible, setSortSheetVisible] = useState(false);
   const [expandedBreakdowns, setExpandedBreakdowns] = useState<Record<string, boolean>>({});
 
   const exams = useMemo(
@@ -122,6 +124,13 @@ export function ExamsScreen() {
   const getSubjectLabel = (key: string) => {
     return subjectLabelByKey.get(key) ?? key;
   };
+
+  const getTypeBadgeLabel = (type: ExamRecord['type']) => {
+    return type === 'FULL' ? 'Genel' : 'Branş';
+  };
+
+  const currentSortLabel = SORT_OPTIONS.find((option) => option.value === sortOption)?.label ?? '';
+  const showSubjectScrollHint = typeFilter === 'BRANCH' && subjectDefs.length > 3;
 
   const getBreakdownRows = (exam: ExamRecord) => {
     if (!exam.subjectScores) return [];
@@ -203,7 +212,7 @@ export function ExamsScreen() {
                 item.type === 'FULL' ? styles.typeBadgeFull : styles.typeBadgeBranch,
               ]}
             >
-              <Text style={styles.typeBadgeText}>{item.type}</Text>
+              <Text style={styles.typeBadgeText}>{getTypeBadgeLabel(item.type)}</Text>
             </View>
 
             <Pressable
@@ -288,7 +297,7 @@ export function ExamsScreen() {
 
           <View style={styles.controlGroup}>
             <View style={styles.controlHeaderRow}>
-              <Text style={styles.controlLabel}>Filtreler</Text>
+              <Text style={styles.controlLabel}>Deneme Türü</Text>
               {hasActiveControls ? (
                 <Pressable
                   accessibilityRole="button"
@@ -304,35 +313,26 @@ export function ExamsScreen() {
                 </Pressable>
               ) : null}
             </View>
-            <View style={styles.segmentRow}>
+            <View style={styles.typeTabGroup}>
               {TYPE_FILTERS.map((option) => (
-                <Pressable
+                <Chip
                   key={option.value}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: typeFilter === option.value }}
+                  label={option.label}
+                  selected={typeFilter === option.value}
                   onPress={() => setTypeFilter(option.value)}
-                  style={({ pressed }) => [
-                    styles.segmentOption,
-                    typeFilter === option.value ? styles.segmentOptionActive : null,
-                    pressed ? { opacity: 0.75 } : null,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.segmentOptionText,
-                      typeFilter === option.value ? styles.segmentOptionTextActive : null,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </Pressable>
+                  style={typeFilter === option.value ? styles.typeTabChipSelected : styles.typeTabChip}
+                  textStyle={typeFilter === option.value ? styles.typeTabChipTextSelected : styles.typeTabChipText}
+                />
               ))}
             </View>
           </View>
 
           {typeFilter === 'BRANCH' ? (
             <View style={styles.controlGroup}>
-              <Text style={styles.controlLabel}>Ders</Text>
+              <View style={styles.controlHeaderRow}>
+                <Text style={styles.controlLabel}>Branş Dersi</Text>
+                {showSubjectScrollHint ? <Text style={styles.controlHint}>Sağa kaydır</Text> : null}
+              </View>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -342,6 +342,8 @@ export function ExamsScreen() {
                   label="Hepsi"
                   selected={!branchSubjectFilter}
                   onPress={() => setBranchSubjectFilter(null)}
+                  style={!branchSubjectFilter ? styles.subjectChipSelected : styles.subjectChip}
+                  textStyle={!branchSubjectFilter ? styles.subjectChipTextSelected : styles.subjectChipText}
                 />
                 {subjectDefs.map((subject) => (
                   <Chip
@@ -349,6 +351,8 @@ export function ExamsScreen() {
                     label={subject.label}
                     selected={branchSubjectFilter === subject.key}
                     onPress={() => setBranchSubjectFilter(subject.key)}
+                    style={branchSubjectFilter === subject.key ? styles.subjectChipSelected : styles.subjectChip}
+                    textStyle={branchSubjectFilter === subject.key ? styles.subjectChipTextSelected : styles.subjectChipText}
                   />
                 ))}
               </ScrollView>
@@ -357,37 +361,18 @@ export function ExamsScreen() {
 
           <View style={styles.controlGroup}>
             <Text style={styles.controlLabel}>Sıralama</Text>
-            <View style={styles.segmentRow}>
-              {SORT_OPTIONS.map((option) => (
-                <Pressable
-                  key={option.value}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: sortOption === option.value }}
-                  onPress={() => setSortOption(option.value)}
-                  style={({ pressed }) => [
-                    styles.segmentOption,
-                    sortOption === option.value ? styles.segmentOptionActive : null,
-                    pressed ? { opacity: 0.75 } : null,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.segmentOptionText,
-                      sortOption === option.value ? styles.segmentOptionTextActive : null,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <Text style={styles.sortHint}>
-              {sortOption === 'DATE_DESC'
-                ? 'Tarih: yeni tarihten eskiye'
-                : sortOption === 'DATE_ASC'
-                  ? 'Tarih: eski tarihten yeniye'
-                  : 'Net: yüksekten düşüğe'}
-            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Sıralama seçimi"
+              onPress={() => setSortSheetVisible(true)}
+              style={({ pressed }) => [
+                styles.sortPickerButton,
+                pressed ? styles.sortPickerPressed : null,
+              ]}
+            >
+              <Text style={styles.sortPickerValue}>{currentSortLabel}</Text>
+              <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
+            </Pressable>
           </View>
         </SurfaceCard>
 
@@ -422,6 +407,44 @@ export function ExamsScreen() {
         onCancel={handleDeleteCancel}
         onConfirm={handleDeleteConfirm}
       />
+
+      <BottomSheet
+        visible={sortSheetVisible}
+        onClose={() => setSortSheetVisible(false)}
+        title="Sıralama"
+      >
+        <View style={styles.sortSheetList}>
+          {SORT_OPTIONS.map((option) => {
+            const selected = sortOption === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
+                onPress={() => {
+                  setSortOption(option.value);
+                  setSortSheetVisible(false);
+                }}
+                style={({ pressed }) => [
+                  styles.sortSheetOption,
+                  selected ? styles.sortSheetOptionActive : null,
+                  pressed ? styles.sortSheetOptionPressed : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.sortSheetOptionText,
+                    selected ? styles.sortSheetOptionTextActive : null,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+                {selected ? <Text style={styles.sortSheetSelected}>Seçili</Text> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -493,42 +516,110 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.accentDeep,
   },
+  controlHint: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
   horizontalChipContent: {
     flexDirection: 'row',
     gap: spacing.sm,
     paddingRight: spacing.xl,
   },
-  segmentRow: {
+  typeTabGroup: {
     flexDirection: 'row',
-    backgroundColor: colors.chipBackground,
+    backgroundColor: colors.neutral200,
     borderRadius: radius.full,
+    padding: 4,
+    gap: spacing.sm,
+  },
+  typeTabChip: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+  },
+  typeTabChipSelected: {
+    flex: 1,
+    backgroundColor: colors.accentDeep,
+    borderWidth: 0,
+  },
+  typeTabChipText: {
+    color: colors.textSecondary,
+    fontWeight: '700',
+  },
+  typeTabChipTextSelected: {
+    color: colors.surface,
+    fontWeight: '700',
+  },
+  subjectChip: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 2,
   },
-  segmentOption: {
-    flex: 1,
-    minHeight: 34,
-    borderRadius: radius.full,
+  subjectChipSelected: {
+    backgroundColor: colors.accentBlueSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  subjectChipText: {
+    color: colors.textSecondary,
+  },
+  subjectChipTextSelected: {
+    color: colors.textPrimary,
+  },
+  sortPickerButton: {
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
+    justifyContent: 'space-between',
   },
-  segmentOptionActive: {
-    backgroundColor: colors.accentDeep,
+  sortPickerPressed: {
+    opacity: 0.8,
   },
-  segmentOptionText: {
+  sortPickerValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  sortSheetList: {
+    gap: spacing.sm,
+  },
+  sortSheetOption: {
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sortSheetOptionActive: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.borderStrong,
+  },
+  sortSheetOptionPressed: {
+    opacity: 0.8,
+  },
+  sortSheetOptionText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  sortSheetOptionTextActive: {
+    color: colors.textStrong,
+  },
+  sortSheetSelected: {
     fontSize: 12,
     fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  segmentOptionTextActive: {
-    color: colors.surface,
-  },
-  sortHint: {
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '500',
+    color: colors.accentDeep,
   },
   list: {
     gap: spacing.md,

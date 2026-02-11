@@ -11,7 +11,6 @@ import { AppState } from 'react-native';
 import { rescheduleAllBasedOnRecords } from '@/lib/notifications/ritimNotifications';
 import { loadRecords, makeRecordKey, saveRecords } from '@/lib/storage/recordsStorage';
 import {
-  deleteRecordFromCloud,
   shouldSync,
   syncRecord,
 } from '@/lib/supabase/sync';
@@ -28,7 +27,13 @@ export type DailyRecord = {
   activityType: ActivityType;
   questionCount?: number;
   subjectBreakdown?: Record<string, number>;
+  isDeleted: boolean;
+  deletedAtMs?: number | null;
+  createdAtMs: number;
+  updatedAtMs: number;
 };
+
+export type DailyRecordInput = Omit<DailyRecord, 'isDeleted' | 'deletedAtMs' | 'createdAtMs' | 'updatedAtMs'>;
 
 type RecordsState = {
   recordsByKey: Record<string, DailyRecord>;
@@ -39,13 +44,13 @@ type RecordsState = {
 type RecordsAction =
   | { type: 'hydrate'; payload: Record<string, DailyRecord> }
   | { type: 'upsert'; payload: DailyRecord }
-  | { type: 'remove'; payload: { trackId: TrackId; date: string } }
+  | { type: 'tombstone'; payload: { trackId: TrackId; date: string; deletedAtMs: number } }
   | { type: 'set-today'; payload: string };
 
 type RecordsContextValue = {
   records: DailyRecord[];
   recordsByKey: Record<string, DailyRecord>;
-  upsertRecord: (record: DailyRecord) => void;
+  upsertRecord: (record: DailyRecordInput) => void;
   removeRecord: (trackId: TrackId, date: string) => void;
   getRecord: (trackId: TrackId, date: string) => DailyRecord | undefined;
   selectTodayRecord: (trackId: TrackId, dateKey?: string) => DailyRecord | undefined;
@@ -87,17 +92,24 @@ function recordsReducer(state: RecordsState, action: RecordsAction): RecordsStat
         },
       };
     }
-    case 'remove': {
-      const { trackId, date } = action.payload;
+    case 'tombstone': {
+      const { trackId, date, deletedAtMs } = action.payload;
       const key = makeRecordKey(trackId, date);
-      if (!state.recordsByKey[key]) {
+      const existing = state.recordsByKey[key];
+      if (!existing) {
         return state;
       }
-      const next = { ...state.recordsByKey };
-      delete next[key];
       return {
         ...state,
-        recordsByKey: next,
+        recordsByKey: {
+          ...state.recordsByKey,
+          [key]: {
+            ...existing,
+            isDeleted: true,
+            deletedAtMs,
+            updatedAtMs: deletedAtMs,
+          },
+        },
       };
     }
     case 'set-today': {
@@ -141,13 +153,15 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const records = useMemo(() => {
-    return Object.values(state.recordsByKey).sort((a, b) => {
-      const dateCompare = b.date.localeCompare(a.date);
-      if (dateCompare !== 0) {
-        return dateCompare;
-      }
-      return a.trackId.localeCompare(b.trackId);
-    });
+    return Object.values(state.recordsByKey)
+      .filter((r) => !r.isDeleted)
+      .sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date);
+        if (dateCompare !== 0) {
+          return dateCompare;
+        }
+        return a.trackId.localeCompare(b.trackId);
+      });
   }, [state.recordsByKey]);
 
   useEffect(() => {
@@ -206,28 +220,47 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
   }, [refreshTodayKey]);
 
   const upsertRecord = useCallback(
-    (record: DailyRecord) => {
-      dispatch({ type: 'upsert', payload: record });
-      if (shouldSync(record.date, settings.coachConnected, session)) {
-        syncRecord(record, session!).catch(console.warn);
+    (record: DailyRecordInput) => {
+      const now = Date.now();
+      const key = makeRecordKey(record.trackId, record.date);
+      const existing = state.recordsByKey[key];
+      const merged: DailyRecord = {
+        ...record,
+        isDeleted: false,
+        deletedAtMs: null,
+        createdAtMs: existing?.createdAtMs ?? now,
+        updatedAtMs: now,
+      };
+      dispatch({ type: 'upsert', payload: merged });
+      if (shouldSync(merged.date, settings.coachConnected, session)) {
+        syncRecord(merged, session!).catch(console.warn);
       }
     },
-    [settings.coachConnected, session],
+    [state.recordsByKey, settings.coachConnected, session],
   );
 
   const removeRecord = useCallback(
     (trackId: TrackId, date: string) => {
-      dispatch({ type: 'remove', payload: { trackId, date } });
-      if (shouldSync(date, settings.coachConnected, session)) {
-        deleteRecordFromCloud(date, trackId, session!).catch(console.warn);
+      const now = Date.now();
+      dispatch({ type: 'tombstone', payload: { trackId, date, deletedAtMs: now } });
+      const existing = state.recordsByKey[makeRecordKey(trackId, date)];
+      if (existing && shouldSync(date, settings.coachConnected, session)) {
+        const tombstone: DailyRecord = {
+          ...existing,
+          isDeleted: true,
+          deletedAtMs: now,
+          updatedAtMs: now,
+        };
+        syncRecord(tombstone, session!).catch(console.warn);
       }
     },
-    [settings.coachConnected, session],
+    [state.recordsByKey, settings.coachConnected, session],
   );
 
   const getRecord = useCallback(
     (trackId: TrackId, date: string) => {
-      return state.recordsByKey[makeRecordKey(trackId, date)];
+      const record = state.recordsByKey[makeRecordKey(trackId, date)];
+      return record?.isDeleted ? undefined : record;
     },
     [state.recordsByKey],
   );
@@ -235,7 +268,8 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
   const selectTodayRecord = useCallback(
     (trackId: TrackId, dateKey?: string) => {
       const key = dateKey ?? state.todayKey;
-      return state.recordsByKey[makeRecordKey(trackId, key)];
+      const record = state.recordsByKey[makeRecordKey(trackId, key)];
+      return record?.isDeleted ? undefined : record;
     },
     [state.recordsByKey, state.todayKey],
   );
@@ -244,17 +278,21 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
     (trackId: TrackId, weekStartKey?: string) => {
       const startDate = resolveWeekStart(weekStartKey ?? state.todayKey);
       const weekDates = getWeekDates(startDate);
-      return weekDates.map((date) => Boolean(state.recordsByKey[makeRecordKey(trackId, date)]));
+      return weekDates.map((date) => {
+        const record = state.recordsByKey[makeRecordKey(trackId, date)];
+        return Boolean(record && !record.isDeleted);
+      });
     },
     [state.recordsByKey, state.todayKey],
   );
 
   const selectHasAnyRecords = useCallback(
     (trackId?: TrackId) => {
+      const values = Object.values(state.recordsByKey);
       if (!trackId) {
-        return Object.keys(state.recordsByKey).length > 0;
+        return values.some((r) => !r.isDeleted);
       }
-      return Object.values(state.recordsByKey).some((record) => record.trackId === trackId);
+      return values.some((r) => r.trackId === trackId && !r.isDeleted);
     },
     [state.recordsByKey],
   );
@@ -272,7 +310,7 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
       let maxDate: string | undefined;
 
       for (const record of Object.values(state.recordsByKey)) {
-        if (record.trackId !== trackId) {
+        if (record.trackId !== trackId || record.isDeleted) {
           continue;
         }
         if (!minDate || record.date < minDate) {
@@ -295,7 +333,8 @@ export function RecordsProvider({ children }: { children: React.ReactNode }) {
 
       while (streak < 365) {
         const dateKey = getDateKey(cursor);
-        if (!state.recordsByKey[makeRecordKey(trackId, dateKey)]) {
+        const streakRecord = state.recordsByKey[makeRecordKey(trackId, dateKey)];
+        if (!streakRecord || streakRecord.isDeleted) {
           break;
         }
         streak += 1;

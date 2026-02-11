@@ -117,11 +117,16 @@ function normalizeRecord(input: unknown, keyHint?: string): DailyRecord | null {
   const questionCount = resolveOptionalNumber(rawRecord.questionCount);
   const subjectBreakdown = resolveSubjectBreakdown(rawRecord.subjectBreakdown);
 
+  const now = Date.now();
   const normalized: DailyRecord = {
     date,
     trackId,
     focusMinutes,
     activityType,
+    isDeleted: rawRecord.isDeleted === true,
+    deletedAtMs: typeof rawRecord.deletedAtMs === 'number' ? rawRecord.deletedAtMs : null,
+    createdAtMs: typeof rawRecord.createdAtMs === 'number' ? rawRecord.createdAtMs : now,
+    updatedAtMs: typeof rawRecord.updatedAtMs === 'number' ? rawRecord.updatedAtMs : now,
   };
 
   if (questionCount !== undefined) {

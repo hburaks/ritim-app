@@ -14,6 +14,8 @@ type DotRowProps = {
   activeIndex?: number;
   filled?: boolean[];
   onChange?: (index: number) => void;
+  accessibilityLabel?: string | ((index: number) => string);
+  accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
   size?: number;
   gap?: number;
@@ -30,6 +32,8 @@ export function DotRow({
   activeIndex = 0,
   filled,
   onChange,
+  accessibilityLabel,
+  accessibilityHint,
   style,
   size = 12,
   gap = spacing.sm,
@@ -74,10 +78,17 @@ export function DotRow({
           isHighlighted && !isFilled && highlightColor
             ? highlightColor
             : inactiveColor;
+        const dotAccessibilityLabel =
+          typeof accessibilityLabel === 'function'
+            ? accessibilityLabel(index)
+            : accessibilityLabel;
         return (
           <Pressable
             key={index}
-            onPress={() => onChange?.(index)}
+            accessibilityRole={onChange ? 'button' : undefined}
+            accessibilityLabel={dotAccessibilityLabel}
+            accessibilityHint={accessibilityHint}
+            onPress={onChange ? () => onChange(index) : undefined}
             hitSlop={6}
             style={[styles.pressable, { padding: pressablePadding }]}
           >

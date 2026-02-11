@@ -421,6 +421,7 @@ function ExamsSection({ trackId, date, subjectDefs }: ExamsSectionProps) {
     () => exams.reduce((sum, e) => sum + (e.durationMinutes ?? 0), 0),
     [exams],
   );
+  const showExamSubjectScrollHint = examType === 'BRANCH' && subjectDefs.length > 3;
 
   const displayNames = useMemo(
     () => buildExamDisplayNames(exams, trackId),
@@ -457,7 +458,7 @@ function ExamsSection({ trackId, date, subjectDefs }: ExamsSectionProps) {
 
   const resetForm = useCallback(() => {
     setExamType('FULL');
-    setExamSubjectKey('');
+    setExamSubjectKey(subjectDefs[0]?.key ?? '');
     setExamDuration('');
     setExamName('');
     setExamCorrect('');
@@ -677,7 +678,10 @@ function ExamsSection({ trackId, date, subjectDefs }: ExamsSectionProps) {
             style={styles.examNameInput}
           />
 
-          <View style={styles.examFormRow}>
+          <View style={styles.examFilterHeaderRow}>
+            <Text style={styles.examInputLabel}>Deneme Türü</Text>
+          </View>
+          <View style={styles.examTypeTabGroup}>
             <Chip
               label="Genel"
               selected={examType === 'FULL'}
@@ -687,6 +691,8 @@ function ExamsSection({ trackId, date, subjectDefs }: ExamsSectionProps) {
                 setExamWrong('');
                 setExamBlank('');
               }}
+              style={examType === 'FULL' ? styles.examTypeChipSelected : styles.examTypeChip}
+              textStyle={examType === 'FULL' ? styles.examTypeChipTextSelected : styles.examTypeChipText}
             />
             <Chip
               label="Branş"
@@ -695,11 +701,17 @@ function ExamsSection({ trackId, date, subjectDefs }: ExamsSectionProps) {
                 setExamType('BRANCH');
                 setSubjectScoreInputs({});
               }}
+              style={examType === 'BRANCH' ? styles.examTypeChipSelected : styles.examTypeChip}
+              textStyle={examType === 'BRANCH' ? styles.examTypeChipTextSelected : styles.examTypeChipText}
             />
           </View>
 
           {examType === 'BRANCH' ? (
             <>
+              <View style={styles.examFilterHeaderRow}>
+                <Text style={styles.examInputLabel}>Branş Dersi</Text>
+                {showExamSubjectScrollHint ? <Text style={styles.examFilterHint}>Sağa kaydır</Text> : null}
+              </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subjectScroll}>
                 <View style={styles.subjectChipRow}>
                   {subjectDefs.map((s) => (
@@ -708,6 +720,8 @@ function ExamsSection({ trackId, date, subjectDefs }: ExamsSectionProps) {
                       label={s.label}
                       selected={examSubjectKey === s.key}
                       onPress={() => setExamSubjectKey(s.key)}
+                      style={examSubjectKey === s.key ? styles.examSubjectChipSelected : styles.examSubjectChip}
+                      textStyle={examSubjectKey === s.key ? styles.examSubjectChipTextSelected : styles.examSubjectChipText}
                     />
                   ))}
                 </View>
@@ -829,9 +843,11 @@ function ExamsSection({ trackId, date, subjectDefs }: ExamsSectionProps) {
             <Pressable
               accessibilityRole="button"
               onPress={handleExamSave}
+              disabled={examType === 'BRANCH' && !examSubjectKey}
               style={({ pressed }) => [
                 styles.examSaveBtn,
                 pressed ? { opacity: 0.7 } : null,
+                examType === 'BRANCH' && !examSubjectKey ? { opacity: 0.4 } : null,
               ]}
             >
               <Text style={styles.examSaveText}>
@@ -1107,12 +1123,63 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
   },
+  examFilterHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  examFilterHint: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  examTypeTabGroup: {
+    flexDirection: 'row',
+    backgroundColor: colors.neutral200,
+    borderRadius: radius.full,
+    padding: 4,
+    gap: spacing.sm,
+  },
+  examTypeChip: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+  },
+  examTypeChipSelected: {
+    flex: 1,
+    backgroundColor: colors.accentDeep,
+    borderWidth: 0,
+  },
+  examTypeChipText: {
+    color: colors.textSecondary,
+    fontWeight: '700',
+  },
+  examTypeChipTextSelected: {
+    color: colors.surface,
+    fontWeight: '700',
+  },
   subjectScroll: {
     marginVertical: spacing.xs,
   },
   subjectChipRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  examSubjectChip: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  examSubjectChipSelected: {
+    backgroundColor: colors.accentBlueSoft,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  examSubjectChipText: {
+    color: colors.textSecondary,
+  },
+  examSubjectChipTextSelected: {
+    color: colors.textPrimary,
   },
   examInputRow: {
     flexDirection: 'row',
@@ -1215,7 +1282,7 @@ const styles = StyleSheet.create({
   },
   subjectScoreRowActive: {
     borderColor: colors.accentDeep,
-    backgroundColor: colors.accentSoft,
+    backgroundColor: colors.surface,
   },
   subjectScoreHeader: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { IconButton } from '@/components/IconButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
+import { TextLink } from '@/components/TextLink';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { TrackId } from '@/lib/track/tracks';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
@@ -23,8 +24,19 @@ import {
 } from '@/state/records';
 import { useSettings } from '@/state/settings';
 
+const ACTIVITY_LABELS: Record<ActivityType, string> = {
+  KONU: 'Konu',
+  SORU: 'Soru',
+  KARISIK: 'Karışık',
+};
+
+const COACH_NOTE_PREVIEW_LINES = 3;
+const ILLUSTRATION_HEIGHT_MIN = 220;
+const ILLUSTRATION_HEIGHT_MAX = 300;
+
 export function HomeScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const { completed, hydrated } = useOnboarding();
   const { settings } = useSettings();
   const {
@@ -37,6 +49,7 @@ export function HomeScreen() {
   } = useRecords();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
+  const [coachNoteExpanded, setCoachNoteExpanded] = useState(false);
   const pendingDeleteRef = useRef<{ trackId: TrackId; date: string } | null>(null);
   const openConfirmAfterCloseRef = useRef(false);
 
@@ -54,6 +67,10 @@ export function HomeScreen() {
   const coachConnected = settings.coachConnected || !!coachNote || !!settings.coachName;
   const showCoachNote = coachConnected && !!coachNote;
   const showCoachConnect = !coachConnected;
+  const canOpenDayEntry = Boolean(todayRecord || activeTrack);
+  const shouldCollapseCoachNote = Boolean(
+    coachNote && coachNote.length > 120
+  );
 
   useEffect(() => {
     if (!hydrated) {
@@ -70,8 +87,19 @@ export function HomeScreen() {
     }, [refreshTodayKey])
   );
 
+  useEffect(() => {
+    setCoachNoteExpanded(false);
+  }, [coachNote]);
+
   const hasRecord = !!todayRecord;
   const illustrationOpacity = useSharedValue(hasRecord ? 1 : 0);
+  const illustrationHeight = useMemo(() => {
+    const scaledHeight = Math.round(width * (hasRecord ? 0.58 : 0.7));
+    return Math.max(
+      ILLUSTRATION_HEIGHT_MIN,
+      Math.min(ILLUSTRATION_HEIGHT_MAX, scaledHeight)
+    );
+  }, [hasRecord, width]);
 
   useEffect(() => {
     illustrationOpacity.value = withTiming(hasRecord ? 1 : 0, {
@@ -88,13 +116,75 @@ export function HomeScreen() {
     opacity: 1 - illustrationOpacity.value,
   }));
 
-  const todayStatus = useMemo(
-    () =>
-      todayRecord
-        ? 'Bugünkü çalışmanı kaydettin'
-        : 'Bugün henüz odak kaydı oluşturmadın',
-    [todayRecord]
-  );
+  const todayStatus = useMemo(() => {
+    return todayRecord
+      ? 'Bugünkü çalışmanı kaydettin'
+      : 'Bugün henüz odak kaydı oluşturmadın';
+  }, [todayRecord]);
+
+  const todaySummary = useMemo(() => {
+    if (!todayRecord) {
+      return null;
+    }
+    const parts = [
+      `${todayRecord.focusMinutes} dk`,
+      ACTIVITY_LABELS[todayRecord.activityType],
+    ];
+    if (todayRecord.questionCount && todayRecord.questionCount > 0) {
+      parts.push(`${todayRecord.questionCount} soru`);
+    }
+    return parts.join(' · ');
+  }, [todayRecord]);
+  const todayExamCount = useMemo(() => {
+    if (!activeTrack) {
+      return 0;
+    }
+    return getExamsForDate(activeTrack, today).length;
+  }, [activeTrack, getExamsForDate, today]);
+  const todayExamInfo = useMemo(() => {
+    if (!todayRecord || todayExamCount <= 0) {
+      return null;
+    }
+    if (todayExamCount === 1) {
+      return 'Ayrıca 1 deneme var';
+    }
+    return `Ayrıca ${todayExamCount} deneme var`;
+  }, [todayExamCount, todayRecord]);
+
+  const navItems: Array<{
+    key: string;
+    title: string;
+    subtitle: string;
+    href: '/days' | '/topics' | '/exams' | '/coach-connect';
+  }> = [
+    {
+      key: 'days',
+      title: 'Günler',
+      subtitle: 'Geçmişini görüntüle',
+      href: '/days' as const,
+    },
+    {
+      key: 'topics',
+      title: 'Konular',
+      subtitle: 'Konu hakkındaki hissini işaretle',
+      href: '/topics' as const,
+    },
+    {
+      key: 'exams',
+      title: 'Denemeler',
+      subtitle: 'Deneme geçmişini gör',
+      href: '/exams' as const,
+    },
+  ];
+
+  if (showCoachConnect) {
+    navItems.push({
+      key: 'coach-connect',
+      title: 'Koça bağlan',
+      subtitle: 'Davet koduyla koçuna bağlan',
+      href: '/coach-connect' as const,
+    });
+  }
 
   const handleSave = (values: {
     focusMinutes: number;
@@ -157,7 +247,24 @@ export function HomeScreen() {
         {showCoachNote ? (
           <SurfaceCard style={styles.coachNoteCard} variant="flat">
             <Text style={styles.coachNoteTitle}>Koçundan Not</Text>
-            <Text style={styles.coachNoteBody}>{coachNote}</Text>
+            <Text
+              style={styles.coachNoteBody}
+              numberOfLines={
+                coachNoteExpanded || !shouldCollapseCoachNote
+                  ? undefined
+                  : COACH_NOTE_PREVIEW_LINES
+              }
+            >
+              {coachNote}
+            </Text>
+            {shouldCollapseCoachNote ? (
+              <TextLink
+                label={coachNoteExpanded ? 'Daha az göster' : 'Devamını gör'}
+                onPress={() => setCoachNoteExpanded((prev) => !prev)}
+                textStyle={styles.coachNoteToggleText}
+                style={styles.coachNoteToggle}
+              />
+            ) : null}
           </SurfaceCard>
         ) : null}
 
@@ -168,6 +275,9 @@ export function HomeScreen() {
               <DotRow
                 activeIndex={todayIndex}
                 filled={weekDots}
+                onChange={() => router.push('/days')}
+                accessibilityLabel="Günler ekranını aç"
+                accessibilityHint="Haftalık gün listesini açar"
                 size={14}
                 gap={6}
                 pressablePadding={2}
@@ -178,15 +288,25 @@ export function HomeScreen() {
               />
             </View>
           </View>
-          <View style={styles.illustrationContainer}>
+          <View style={[styles.illustrationContainer, { height: illustrationHeight }]}>
             <Animated.Image
               source={require('@/assets/images/no-entry-state-home-screen-illustration.png')}
-              style={[styles.weekIllustration, styles.illustrationAbsolute, noEntryStyle]}
+              style={[
+                styles.weekIllustration,
+                { height: illustrationHeight },
+                styles.illustrationAbsolute,
+                noEntryStyle,
+              ]}
               resizeMode="contain"
             />
             <Animated.Image
               source={require('@/assets/images/entry-exist-state-home-screen-illustration.png')}
-              style={[styles.weekIllustration, styles.illustrationAbsolute, entryExistStyle]}
+              style={[
+                styles.weekIllustration,
+                { height: illustrationHeight },
+                styles.illustrationAbsolute,
+                entryExistStyle,
+              ]}
               resizeMode="contain"
             />
           </View>
@@ -199,86 +319,56 @@ export function HomeScreen() {
                 <View style={styles.statusBadge}>
                   <Text style={styles.statusBadgeText}>✓</Text>
                 </View>
-                <Text style={styles.statusText}>{todayStatus}</Text>
+                <View style={styles.statusCopy}>
+                  <Text style={styles.statusSummary}>{todaySummary}</Text>
+                  <Text style={styles.statusText}>{todayStatus}</Text>
+                  {todayExamInfo ? (
+                    <Text style={styles.statusMeta}>{todayExamInfo}</Text>
+                  ) : null}
+                </View>
               </View>
             ) : (
               <Text style={styles.cardValue}>{todayStatus}</Text>
             )}
             <PrimaryButton
               label={todayRecord ? 'KAYDI DÜZENLE' : 'BUGÜN ODAKLANDIM'}
-              onPress={() => {
-                if (!todayRecord && !activeTrack) {
-                  return;
-                }
-                setSheetVisible(true);
-              }}
+              onPress={() => setSheetVisible(true)}
+              disabled={!canOpenDayEntry}
               style={styles.cardButton}
               textStyle={styles.cardButtonText}
             />
+            {!canOpenDayEntry ? (
+              <Text style={styles.cardHelperText}>
+                Devam etmek için önce bir çalışma alanı seç.
+              </Text>
+            ) : null}
           </SurfaceCard>
         </View>
 
         <View style={styles.divider} />
 
         <View style={styles.navSection}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/days')}
-            style={({ pressed }) => [
-              styles.navRow,
-              pressed ? styles.navRowPressed : null,
-            ]}
-          >
-            <View>
-              <Text style={styles.navTitle}>Günler</Text>
-              <Text style={styles.navSubtitle}>Geçmişini görüntüle</Text>
-            </View>
-            <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/topics')}
-            style={({ pressed }) => [
-              styles.navRow,
-              pressed ? styles.navRowPressed : null,
-            ]}
-          >
-            <View>
-              <Text style={styles.navTitle}>Konular</Text>
-              <Text style={styles.navSubtitle}>Konu hakkındaki hissini işaretle</Text>
-            </View>
-            <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/exams')}
-            style={({ pressed }) => [
-              styles.navRow,
-              pressed ? styles.navRowPressed : null,
-            ]}
-          >
-            <View>
-              <Text style={styles.navTitle}>Denemeler</Text>
-              <Text style={styles.navSubtitle}>Deneme geçmişini gör</Text>
-            </View>
-            <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
-          </Pressable>
-          {showCoachConnect ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push('/coach-connect')}
-              style={({ pressed }) => [
-                styles.navRow,
-                pressed ? styles.navRowPressed : null,
-              ]}
-            >
-              <View>
-                <Text style={styles.navTitle}>Koça bağlan</Text>
-                <Text style={styles.navSubtitle}>Davet koduyla koçuna bağlan</Text>
-              </View>
-              <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
-            </Pressable>
-          ) : null}
+          {navItems.map((item, index) => {
+            const isLast = index === navItems.length - 1;
+            return (
+              <Pressable
+                key={item.key}
+                accessibilityRole="button"
+                onPress={() => router.push(item.href)}
+                style={({ pressed }) => [
+                  styles.navRow,
+                  !isLast ? styles.navRowDivider : null,
+                  pressed ? styles.navRowPressed : null,
+                ]}
+              >
+                <View style={styles.navTextWrap}>
+                  <Text style={styles.navTitle}>{item.title}</Text>
+                  <Text style={styles.navSubtitle}>{item.subtitle}</Text>
+                </View>
+                <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
+              </Pressable>
+            );
+          })}
         </View>
       </ScrollView>
 
@@ -349,7 +439,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: colors.textSecondary,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
     marginTop: spacing.xs,
   },
@@ -369,6 +459,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 20,
   },
+  coachNoteToggle: {
+    alignSelf: 'flex-start',
+  },
+  coachNoteToggleText: {
+    color: colors.textStrong,
+  },
   mainStack: {
     gap: spacing.xs,
   },
@@ -378,11 +474,9 @@ const styles = StyleSheet.create({
   },
   illustrationContainer: {
     width: '100%',
-    height: 300,
   },
   weekIllustration: {
     width: '100%',
-    height: 300,
     borderRadius: 18,
   },
   illustrationAbsolute: {
@@ -421,8 +515,17 @@ const styles = StyleSheet.create({
   },
   cardStatusRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.md,
+  },
+  statusCopy: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  statusSummary: {
+    color: colors.textStrong,
+    fontSize: 15,
+    fontWeight: '600',
   },
   statusBadge: {
     width: 22,
@@ -431,6 +534,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.statusBadge,
+    marginTop: 1,
   },
   statusBadgeText: {
     color: colors.surface,
@@ -440,7 +544,12 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  statusMeta: {
+    color: colors.textSecondary,
+    fontSize: 13,
     fontWeight: '500',
   },
   cardButton: {
@@ -455,22 +564,42 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.surface,
   },
+  cardHelperText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: spacing.xs,
+  },
   divider: {
     height: 1,
     backgroundColor: colors.border,
     marginHorizontal: spacing.md,
   },
   navSection: {
-    gap: 20,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
   },
   navRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    minHeight: 56,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  navRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   navRowPressed: {
-    opacity: 0.7,
+    backgroundColor: colors.backgroundMuted,
+  },
+  navTextWrap: {
+    flex: 1,
+    paddingRight: spacing.md,
   },
   navTitle: {
     color: colors.navTitle,
@@ -479,7 +608,7 @@ const styles = StyleSheet.create({
   },
   navSubtitle: {
     color: colors.textSecondary,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
   },
 });

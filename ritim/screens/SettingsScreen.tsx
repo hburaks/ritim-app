@@ -29,14 +29,17 @@ import {
 import { signOut } from '@/lib/supabase/auth';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { TRACKS, getTrackById, type TrackId } from '@/lib/track/tracks';
+import { updateActiveTrack } from '@/lib/coach/coachApi';
 import {
   normalizeReminderTime,
   useSettings,
 } from '@/state/settings';
+import { useAuth } from '@/state/auth';
 
 export function SettingsScreen() {
   const router = useRouter();
   const { settings, updateSettings } = useSettings();
+  const { session } = useAuth();
   const [timeSheetVisible, setTimeSheetVisible] = useState(false);
   const [displayNameSheetVisible, setDisplayNameSheetVisible] = useState(false);
   const [permissionMessage, setPermissionMessage] = useState<string | null>(null);
@@ -64,6 +67,10 @@ export function SettingsScreen() {
   const handleTrackSelect = (trackId: TrackId) => {
     updateSettings({ activeTrack: trackId });
     setTrackSheetVisible(false);
+    // Best-effort sync to profiles.active_track
+    if (session) {
+      updateActiveTrack(trackId).catch(console.warn);
+    }
   };
 
   const versionLabel =
@@ -108,6 +115,10 @@ export function SettingsScreen() {
 
   const handleCoachConnect = () => {
     router.push('/coach-connect');
+  };
+
+  const handleCoachMode = () => {
+    router.push('/coach');
   };
 
   const handleDisplayNameOpen = () => {
@@ -331,6 +342,27 @@ export function SettingsScreen() {
           ) : null}
         </View>
 
+
+        <View style={styles.section}>
+          <SurfaceCard style={styles.card}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleCoachMode}
+              style={({ pressed }) => [
+                styles.row,
+                pressed ? styles.rowPressed : null,
+              ]}
+            >
+              <View style={styles.rowText}>
+                <Text style={styles.rowTitle}>Koç Moduna Geç</Text>
+                <Text style={styles.rowSubtitle}>
+                  Öğrencilerini görüntüle ve takip et.
+                </Text>
+              </View>
+              <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
+            </Pressable>
+          </SurfaceCard>
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>HAKKINDA</Text>

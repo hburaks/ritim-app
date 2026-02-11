@@ -37,6 +37,7 @@ type ExamsContextValue = {
   getExamsForDate: (trackId: TrackId, date: string) => ExamRecord[];
   getExamsForTrack: (trackId: TrackId) => ExamRecord[];
   getExamDurationForDate: (trackId: TrackId, date: string) => number;
+  getAllExams: () => ExamRecord[];
   hydrated: boolean;
 };
 
@@ -193,6 +194,11 @@ export function ExamsProvider({ children }: { children: React.ReactNode }) {
     [state.examsById],
   );
 
+  const getAllExams = useCallback(
+    (): ExamRecord[] => Object.values(state.examsById),
+    [state.examsById],
+  );
+
   const value = useMemo(
     () => ({
       addExam,
@@ -201,6 +207,7 @@ export function ExamsProvider({ children }: { children: React.ReactNode }) {
       getExamsForDate,
       getExamsForTrack,
       getExamDurationForDate,
+      getAllExams,
       hydrated: state.hydrated,
     }),
     [
@@ -210,6 +217,7 @@ export function ExamsProvider({ children }: { children: React.ReactNode }) {
       getExamsForDate,
       getExamsForTrack,
       getExamDurationForDate,
+      getAllExams,
       state.hydrated,
     ],
   );

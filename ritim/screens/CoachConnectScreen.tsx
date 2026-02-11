@@ -23,9 +23,12 @@ import {
   getErrorMessage,
   verifyInvite,
 } from '@/lib/supabase/invites';
-import { syncInitialLast30Days } from '@/lib/supabase/sync';
+import { updateActiveTrack } from '@/lib/coach/coachApi';
+import { setPendingInitialSync } from '@/lib/storage/pendingSyncStorage';
+import { syncInitialLast30Days, syncInitialExamsLast30Days } from '@/lib/supabase/sync';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
 import { useAuth } from '@/state/auth';
+import { useExams } from '@/state/exams';
 import { useRecords } from '@/state/records';
 import { useSettings } from '@/state/settings';
 
@@ -44,9 +47,10 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
 
 export function CoachConnectScreen() {
   const router = useRouter();
-  const { updateSettings } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const { session } = useAuth();
   const { records } = useRecords();
+  const { getAllExams } = useExams();
 
   const [step, setStep] = useState<Step>('code');
   const [code, setCode] = useState('');
@@ -130,7 +134,20 @@ export function CoachConnectScreen() {
           accountEmail: effectiveSession?.user?.email ?? null,
         });
         if (effectiveSession) {
-          syncInitialLast30Days(records, effectiveSession).catch(console.warn);
+          // Initial sync: daily + exams, with pending flag on failure
+          Promise.all([
+            syncInitialLast30Days(records, effectiveSession),
+            syncInitialExamsLast30Days(getAllExams(), effectiveSession),
+          ])
+            .then(() => setPendingInitialSync(false))
+            .catch((err) => {
+              console.warn('[coach-connect] initial sync failed:', err);
+              setPendingInitialSync(true);
+            });
+          // Sync active_track to profiles (best-effort)
+          if (settings.activeTrack) {
+            updateActiveTrack(settings.activeTrack).catch(console.warn);
+          }
         }
         setStep('success');
       } else {

@@ -1,292 +1,429 @@
-T2.8 — Coach Mode Entry + CoachHome (Öğrenci Seçimi ve Liste MVP)
+T2.8 — Coach Mode Entry + CoachHome (Öğrenci Liste MVP)
 
-Durum: YAPILACAK
+Durum: TAMAMLANDI
 
 Context
 
-Uygulamada koç modu Phase-2’de açılıyor. Koç, Ayarlar’dan koç moduna geçebilecek ve önce öğrenci seçecek, ardından öğrenci kartlarını liste halinde görecek.
+Koç modu Phase-2 kapsamında açılıyor. Amaç:
 
-MVP odak:
+Koçun uygulama içinden kendi öğrencilerini görebilmesi
 
-Öğrenci seçimi (default öğrenci yok)
+Basit, dashboardlaşmayan bir MVP
 
-Öğrenci listesi + kartlar
+Performanslı ve güvenilir metrikler
 
-Favoriler (local)
+Offline-first mimariye uyumlu ama koç tarafında DB tabanlı çalışma
 
-Son aktivite (streak yerine tek satır)
+MVP kapsamında:
 
-“Bu hafta: toplam dk + FULL deneme sayısı”
+Tek ekran liste
 
-Öğrencinin aktif track bilgisini gösterme (backend’den)
+Runtime hesaplanan metrikler
 
-Tombstone kayıtlar görünmeyecek (is_deleted=true filtrelenecek)
+Tombstone filtreleme
 
-N+1 sorgu yapılmayacak (batch fetch + client-side agregasyon)
+N+1 sorgu olmaması
 
-Not: Metrikler backend’de “summary” olarak tutulmayacak; koç ekranında runtime hesaplanacak (daily_records + exam_records).
+---
 
-Net Kararlar
+NET ÜRÜN KARARLARI
 
-Koç modu Ayarlar ekranından açılır.
+Koç Kimdir?
 
-Coach alanına girince default öğrenci seçili gelmez; önce liste/seleksiyon yapılır.
+Koç ayrı bir auth hesabı değildir.
 
-Öğrenci kartları yalnızca öğrencinin aktif track’i üzerinden hesaplanır.
+Koç, normal Supabase kullanıcısıdır.
 
-Son aktivite = daily_records veya FULL exam_records içindeki en güncel tarih (track filtreli, tombstone hariç).
+Koç erişimi yalnızca coach_students ilişkisi üzerinden belirlenir.
 
-“Son deneme skoru” kart MVP’de YOK (ileride eklenebilir). Şimdilik sadece:
+Profiles tablosunda role alanı MVP kapsamında guard için kullanılmaz.
 
-“Bu hafta: X dk · Y FULL deneme”
+Guard Mantığı
 
-Favoriler sadece local (AsyncStorage).
+Auth yoksa: koç ekranına girilemez → "Koç Modu için giriş yap" CTA gösterilir
 
-Tombstone:
+Auth var ama coach_students boşsa: empty state → "Bağlı öğrencin yok"
 
-daily_records.is_deleted = false
+Auth var ve bağlı öğrenci varsa: CoachHome açılır
 
-exam_records.is_deleted = false
+Koç – Öğrenci İlişki Kuralları
 
-N+1 yasak: öğrenci başına query yok. Koç ekranı açılışında batch fetch yapılır.
+1 koç – çok öğrenci
 
-UI Akışı (MVP)
-1) Settings → Coach Mode
+1 öğrenci – aynı anda en fazla 1 koç
+
+Veri modeli:
+
+coach_students tablosunda student_id UNIQUE
+
+Öğrenci koç değiştirebilir
+
+Öğrenci verisi koçtan bağımsızdır
+
+Eski koç ilişki kopunca öğrencinin verilerini artık göremez
+
+Yeni koç aynı verileri görür
+
+---
+
+KOÇ MODUNA GEÇİŞ AKIŞI
+
+Settings Üzerinden
+
+Settings ekranında buton: "Koç Moduna Geç" (HAKKINDA bölümünden hemen önce)
+
+Butona basılınca /coach route açılır
+
+CoachHomeScreen guard akışı:
+
+Auth yoksa → Google OAuth CTA
+
+Auth varsa → batch fetch → liste veya empty state
+
+---
+
+COACH HOME EKRANI – MVP TANIMI
+
+MVP'de yalnızca tek ekran vardır:
+
+Öğrenci liste ekranı (FlatList)
+
+Detay ekranı yok
+
+Arama input yok
+
+Profiles Alan Sözleşmesi
+
+Öğrenci adı için tek kaynak: profiles.display_name
+
+Tüm koç ekranı sorguları display_name üzerinden çalışır
+
+---
+
+ACTIVE TRACK SENKRONİZASYONU
+
+Koç metrikleri öğrencinin aktif track bilgisine göre hesaplanır.
+
+Kural
+
+profiles.active_track alanı Supabase tarafında tutulur
+
+Aşağıdaki anlarda update edilir:
+
+Settings ekranında track değiştirildiğinde (SettingsScreen.tsx → updateActiveTrack)
+
+CoachConnect bağlantı başarılı olduğunda (mevcut active_track sync)
+
+Davranış
+
+Sync başarısız olursa: best-effort (sessizce logla, retry yok)
+
+Kritik veri değildir, koç ekranı için metadata niteliğindedir
+
+Tip Güvenliği
+
+DB'den gelen active_track değeri client tarafında whitelist ile doğrulanır (coachApi.ts → validateTrackId)
+
+Geçerli: LGS7 | LGS8 | TYT | AYT → kullan
+
+Geçersiz veya null → null say, chip'te "—" göster
+
+---
+
+METRİK HESAPLAMA KURALLARI
+
+Tombstone
+
+Aşağıdaki kayıtlar hesaba katılmaz:
+
+daily_records.is_deleted = true olanlar filtrelenir (batch fetch'te is_deleted=false filtresi)
+
+exam_records.is_deleted = true olanlar filtrelenir (batch fetch'te is_deleted=false filtresi)
+
+Track Filtresi
+
+Tüm metrikler:
+
+Öğrencinin profiles.active_track değeri üzerinden
+
+Sadece o track id ile hesaplanır (coachMetrics.ts → filterDailyByTrack / filterExamsByTrack)
+
+Son Aktivite
+
+Tanım (coachMetrics.ts → computeLastActivity):
+
+max(
+  track filtreli daily_records.date,
+  track filtreli FULL exam_records.date
+)
+
+Gösterim (coachMetrics.ts → formatLastActivity):
+
+Bugün
+
+Dün
+
+X gün önce
+
+Eğer son 30 gün içinde hiç kayıt yoksa:
+
+Mesaj: "Son 30 günde aktivite yok"
+
+Haftalık Metrik (Son 7 Gün)
+
+Zaman penceresi:
+
+Bugün dahil son 7 gün [today - 6 ... today]
+
+Cihaz local timezone bazlı
+
+Timezone kuralı:
+
+date alanı YYYY-MM-DD string olduğundan hesaplama string karşılaştırma ile yapılır
+
+UTC Date'e çevirip kaydırma yapılmaz — "1 gün kayması" bug'ını engeller
+
+Local today: getLocalToday() (coachMetrics.ts)
+
+Hesap (coachMetrics.ts):
+
+weeklyMinutes = sum(daily.focus_minutes) + sum(fullExam.duration_minutes veya 0)
+
+weeklyFullExamCount = count(type = FULL)
+
+---
+
+N+1 YASAĞI – BATCH FETCH STRATEJİSİ
+
+Koç ekranı açılışında öğrenci başına ayrı sorgu atılamaz.
+
+Toplam query sayısı sabit (4 adet), öğrenci sayısı artsa da query sayısı artmaz.
+
+Implementasyon: coachApi.ts → fetchCoachData()
+
+1) coach_students → coach_id = auth.uid() → studentIds listesi
+2) profiles → id in studentIds (parallel)
+3) daily_records → user_id in studentIds, date >= today-30, is_deleted=false (parallel)
+4) exam_records → user_id in studentIds, date >= today-30, is_deleted=false, type=FULL (parallel)
+
+Query 2-3-4 Promise.all ile paralel çalışır.
+
+Kısa Devre: coach_students boş gelirse → null return, diğer query'ler atılmaz.
+
+Ardından tüm hesaplamalar client-side yapılır.
+
+---
+
+ÖĞRENCİ – KOÇ BAĞLANTI AKIŞI (Initial Sync)
+
+CoachConnect ekranı öğrenci tarafına aittir.
+
+Öğrenci koça bağlandığında (CoachConnectScreen.tsx → handleConsume):
+
+syncInitialLast30Days (daily records) — zaten mevcuttu
+
+syncInitialExamsLast30Days (exam records) — eklendi
+
+updateActiveTrack (profiles.active_track sync) — eklendi
+
+Her üçü de Promise.all ile paralel tetiklenir.
+
+Pending Mekanizması
+
+Eğer initial sync (daily + exams) başarısız olursa:
+
+pending_initial_sync = true flag set edilir (pendingSyncStorage.ts)
+
+Storage key: ritim.v1.pendingInitialSync (ayrı AsyncStorage key)
+
+Retry tetikleyicisi: _layout.tsx → PendingSyncRetry component
+
+session mevcut + exams hydrated + settings hydrated ise flag kontrol edilir
+
+flag=true ise sync tekrar tetiklenir
+
+Başarılı olunca flag temizlenir
+
+---
+
+AUTH SESSION KAYBI / LOGOUT HANDLING
+
+A) Logout olunca
+
+Auth session gider → sync job'ları çalışmayı bırakır
+
+Sync katmanında: getSession() null ise sessizce return
+
+CoachHome: auth yoksa "Koç Modu için giriş yap" CTA'sı gösterilir
+
+Local storage temizlenmez (local-first felsefesi korunur, sadece auth token gider)
+
+B) Tekrar login olunca
+
+Aynı hesapla login → local data aynen durur, sync kaldığı yerden devam eder
+
+Coach mode'a tekrar girilebilir
+
+C) Farklı hesapla login olursa
+
+NOT: MVP'de bu kontrol henüz implemente edilmedi. İleride eklenebilir.
+
+Planlanan davranış: pasif mesaj gösterilir, local storage sıfırlama yapılmaz.
+
+---
+
+UI AKIŞI
+
+1) Settings Ekranı
 
 Dosya: ritim/screens/SettingsScreen.tsx
 
-Yeni satır: “Koç Modu”
+"Koç Moduna Geç" butonu HAKKINDA bölümünden önce eklendi
 
-Basınca route: /coach
+Alt metin: "Öğrencilerini görüntüle ve takip et."
 
-2) Coach Root → Öğrenci Seçimi (ilk ekran)
+Track değişikliğinde active_track sync tetiklenir
 
-Yeni route: ritim/app/coach/index.tsx
-Yeni screen: ritim/screens/coach/CoachSelectStudentScreen.tsx
+2) Coach Route
 
-Ekran içeriği:
+ritim/app/coach/_layout.tsx — Stack layout (headerShown: false)
 
-Başlık: “Öğrenci Seç”
+ritim/app/coach/index.tsx — CoachHomeScreen render
 
-Liste (card row):
+ritim/app/_layout.tsx — coach Screen eklendi
 
-Öğrenci adı
+3) CoachHome Ekranı (ritim/screens/coach/CoachHomeScreen.tsx)
 
-Aktif track chip (LGS7/LGS8/TYT/AYT)
+Guard katmanları (sırasıyla):
+  1. Auth loading → spinner
+  2. Auth yoksa → "Koç Modu için giriş yap" CTA + Google OAuth butonu
+  3. Data loading → spinner
+  4. Error → hata mesajı + "TEKRAR DENE" butonu
+  5. coach_students boş → "Bağlı öğrencin yok" empty state
+  6. Data var → FlatList ile öğrenci kartları
 
-“Son aktivite: X gün önce” (varsa)
+Her öğrenci kartında:
+  display_name (numberOfLines=1)
+  active_track chip (shortLabel, geçersizse "—")
+  "Son aktivite: X gün önce" metni
+  "Bu hafta: X dk · Y FULL deneme" metni
+  Favori yıldızı toggle (star/star.fill)
 
-⭐ favori toggle (local)
+Sıralama:
+  Favoriler üstte
+  İçlerinde son aktivitesi en eski olan önce (null = en eski)
 
-Opsiyonel: arama input (isime göre)
+Loading – Error – Refresh:
+  İlk açılış: ActivityIndicator
+  Hata: SurfaceCard + retry butonu
+  Pull-to-refresh: RefreshControl ile batch fetch tekrar
 
-Seçince: /coach/student/[studentId]
+---
 
-Not: Bu ekran aynı zamanda “CoachHome liste ekranı” olabilir; MVP’de ayrı bir “home” ekranına gerek yok. Seçim yapınca detay route’a geçilir.
+BACKEND GEREKSİNİMLERİ (TAMAMLANDI)
 
-3) Coach Student Home (Seçilen öğrenci özet)
-
-Yeni route: ritim/app/coach/student/[studentId].tsx
-Yeni screen: ritim/screens/coach/CoachStudentHomeScreen.tsx
-
-Gösterilecekler (minimal):
-
-Üst: Öğrenci adı + track chip
-
-Satır: “Son aktivite: X gün önce” (tek satır, streak yok)
-
-Satır: “Bu hafta: 240 dk · 1 FULL deneme”
-
-Alt: (MVP) sadece listelere giriş linkleri (sonra T2.9/T3 ile genişler)
-
-Data / Hesaplama Kuralları
-A) Track filtresi
-
-Koç kart metrikleri öğrencinin active_track değerine göre hesaplanır.
-
-activeTrack = profiles.active_track (TrackId)
-
-Tüm query’lerde track_id = activeTrack
-
-B) Tombstone filtresi
-
-daily_records: is_deleted = false
-
-exam_records: is_deleted = false
-
-exam_records ayrıca: type = 'FULL'
-
-C) Son Aktivite (lastActivityAt)
-
-Son aktivite = max(
-
-track filtreli daily_records içinde en büyük date
-
-track filtreli FULL exam_records içinde en büyük date
-)
-
-UI:
-
-“Son aktivite: {diffDays} gün önce”
-
-Eğer hiç kayıt yoksa: “Henüz kayıt yok”
-
-D) Haftalık metrik (son 7 gün)
-
-Pencere: bugün dahil son 7 gün (local today 기준)
-
-weeklyMinutes = sum(daily.focus_minutes) + sum(fullExam.duration_minutes)
-
-duration_minutes null ise 0 say
-
-weeklyFullExamCount = count(full exams) (duration olsa da olmasa da sayılır)
-
-N+1 Problem Çözümü (Zorunlu)
-Batch Fetch Stratejisi (MVP)
-
-Koç ekranı açılışında şu adımlar tek seferde yapılır:
-
-coach_students → coach’un bağlı öğrenci ID listesi
-
-profiles → id in (studentIds) için: id, name, active_track
-
-daily_records → user_id in (studentIds) için son 30 gün:
-
-filtre: is_deleted=false, date >= today-30
-
-alanlar: user_id, track_id, date, focus_minutes
-
-exam_records → user_id in (studentIds) için son 30 gün:
-
-filtre: is_deleted=false, type='FULL', date >= today-30
-
-alanlar: user_id, track_id, date, duration_minutes
-
-Sonra client-side:
-
-studentId bazlı grupla
-
-her student için active_track’e göre filtrele
-
-lastActivity ve weekly metrikleri hesapla
-
-30 gün çekmek: “son aktivite” + “son 7 gün” için yeterli. İleride detay ekranlar büyürse genişletilir.
-
-Backend / Supabase Gereksinimleri
-1) profiles.active_track (öğrenciden sync)
-
-Migration:
+Migration: add_active_track_to_profiles
 
 ALTER TABLE public.profiles ADD COLUMN active_track text NULL;
 
-Sync:
+RLS Policy: "Coaches can read student profiles"
 
-Öğrenci activeTrack değişince profiles.active_track update edilir.
+CREATE POLICY "Coaches can read student profiles"
+  ON public.profiles FOR SELECT TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.coach_students cs
+    WHERE cs.student_id = profiles.id AND cs.coach_id = auth.uid()
+  ));
 
-2) RLS Policies (kritik)
+Mevcut RLS (zaten vardı, değişiklik gerekmedi):
 
-Koç ham veri okuyacağı için şu SELECT policy’leri şart:
+daily_records: "Coaches can read student records" ✓
+exam_records: "Coaches can read student exam records" ✓
+profiles: "Users can update own profile" ✓ (active_track yazımı için)
 
-daily_records:
+---
 
-Student: kendi kayıtlarını manage edebilir
+FAVORİLER (LOCAL)
 
-Coach: coach_students üzerinden bağlı olduğu öğrencilerin kayıtlarını SELECT edebilir
+Dosya: ritim/lib/storage/coachFavoritesStorage.ts
 
-exam_records:
+Storage key: ritim.coach.favorites.v1
 
-Student: kendi kayıtlarını manage edebilir
-
-Coach: bağlı öğrencilerin exam kayıtlarını SELECT edebilir
-
-profiles:
-
-Student: kendi profilini update edebilir (active_track)
-
-Coach: bağlı öğrencilerin active_track ve isim alanlarını SELECT edebilir
-
-3) Coach Mode Guard
-
-/coach route’a girildiğinde:
-
-coach_students içinde coach_id = auth.uid() kaydı yoksa:
-
-empty state: “Koç hesabı değil / bağlı öğrencin yok”
-
-geri dön butonu
-
-Favoriler (Local)
-
-Yeni storage: ritim.coach.favorites.v1
 Format: Record<studentId, true>
 
-Sıralama:
+API: getFavorites(), toggleFavorite(studentId)
+
+Sıralama (CoachHomeScreen içinde):
 
 Favoriler üstte
 
-Favoriler içinde: son aktivitesi en eski olan üstte
+Her grup içinde: son aktivitesi en eski olan önce
 
-Favori olmayanlarda da aynı
+---
 
-Dosya / Değişiklik Listesi
-Yeni
+DOSYA DEĞİŞİKLİK LİSTESİ
 
-ritim/screens/coach/CoachSelectStudentScreen.tsx
+Yeni (7 dosya)
 
-ritim/screens/coach/CoachStudentHomeScreen.tsx
+ritim/app/coach/_layout.tsx — Coach stack layout
+ritim/app/coach/index.tsx — Coach route entry
+ritim/screens/coach/CoachHomeScreen.tsx — Ana koç ekranı
+ritim/lib/coach/coachApi.ts — Batch fetch, active_track update, tip doğrulama
+ritim/lib/coach/coachMetrics.ts — Metrik hesaplama (lastActivity, weekly, filtering)
+ritim/lib/storage/coachFavoritesStorage.ts — Favori toggle + persist
+ritim/lib/storage/pendingSyncStorage.ts — Pending initial sync flag
 
-ritim/lib/coach/coachMetrics.ts
+Güncellenmiş (6 dosya)
 
-computeLastActivity(...)
+ritim/app/_layout.tsx — coach Screen + PendingSyncRetry component
+ritim/screens/SettingsScreen.tsx — "Koç Moduna Geç" butonu + active_track sync
+ritim/screens/CoachConnectScreen.tsx — syncInitialExamsLast30Days + active_track sync + pending flag
+ritim/state/exams.tsx — getAllExams() getter eklendi
+ritim/lib/storage/storageKeys.ts — COACH_FAVORITES_KEY + PENDING_INITIAL_SYNC_KEY
+docs/tickets/phase-2/0008-coachome.md — Ticket güncellendi
 
-computeWeeklyMinutes(...)
+Supabase (2 değişiklik)
 
-computeWeeklyFullExamCount(...)
+Migration: add_active_track_to_profiles (profiles.active_track kolonu)
+RLS: "Coaches can read student profiles" policy
 
-filterByActiveTrackAndNotDeleted(...)
+---
 
-ritim/lib/storage/coachFavoritesStorage.ts
+ACCEPTANCE CRITERIA
 
-ritim/lib/storage/storageKeys.ts → COACH_FAVORITES_KEY
+[x] Settings ekranından Koç Moduna geçilebiliyor
+[x] Login değilse "Koç Modu için giriş yap" CTA çıkıyor
+[x] Login sonrası /coach açılıyor
+[x] coach_students boşsa empty state gösteriliyor
+[x] Öğrenci listesi doğru geliyor
+[x] display_name ve active_track doğru görünüyor (geçersiz track → "—")
+[x] Tombstone kayıtlar hariç tutuluyor (batch fetch'te is_deleted=false filtresi)
+[x] Haftalık metrik doğru hesaplanıyor (track filtreli, string date karşılaştırma)
+[x] N+1 sorgu yok (4 sabit query, öğrenci sayısından bağımsız)
+[x] Loading, error ve pull-to-refresh çalışıyor
+[x] Son 30 gün dışı aktivite "Son 30 günde aktivite yok" mesajıyla gösteriliyor
+[x] syncInitialExamsLast30Days CoachConnect'ten çağrılıyor
+[x] pendingInitialSync flag ile retry mekanizması çalışıyor (_layout.tsx)
+[x] active_track Settings'te track değişikliğinde sync ediliyor
+[x] active_track CoachConnect bağlantı sonrası sync ediliyor
+[ ] Farklı hesapla login uyarısı (MVP'de implemente edilmedi, ileride eklenecek)
 
-Güncellenecek
+---
 
-ritim/screens/SettingsScreen.tsx → Coach Mode giriş satırı
+KAPSAM DIŞI
 
-ritim/lib/supabase/* → koç batch fetch helper’ları (tek yerden)
+Koç tarafı davet kodu üretimi
 
-public.profiles migration → active_track
+Öğrenci detay ekranı
 
-RLS policy’ler (daily_records, exam_records, profiles)
+Arama input
 
-Acceptance (Done)
+Streak algoritması
 
- Settings’ten Koç Modu’na girilebiliyor.
+Son deneme skoru kartı
 
- /coach açılınca öğrenci seçmeden devam edilmiyor.
+Bildirim sistemi
 
- Koç hesabı değilse (coach_students boş) empty state görünüyor.
+Disconnect yönetimi UI
 
- Öğrenci listesinde isim + aktif track chip + son aktivite görünüyor.
-
- Tombstone kayıtlar metriklere dahil edilmiyor (is_deleted=false).
-
- “Bu hafta: X dk · Y FULL deneme” doğru hesaplanıyor (track filtreli).
-
- Favoriler ⭐ local çalışıyor; favoriler üstte sıralanıyor.
-
- N+1 yok: koç ekranı açılışında öğrenci başına query atılmıyor (batch fetch).
-
- Öğrencinin aktif track’i backend’den doğru görünüyor (profiles.active_track).
-
-Kapsam Dışı
-
-Koçun not yazması + öğrenciye bildirim (ayrı ticket)
-
-Koç dashboard / grafikler
-
-Öğrenci detay raporlama (ayrı ticket)
-
-Streak algoritmasını detaylandırma (v2)
-
-“Son deneme skoru” kart metrikleri (v2)
+Farklı hesap login uyarısı (ayrı ticket olarak planlanabilir)

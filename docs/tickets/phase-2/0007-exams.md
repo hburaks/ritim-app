@@ -1,314 +1,366 @@
-T2.7 — Denemeler Altyapısı + Geçmiş Ekranı + Koça Sync
+T2.7 — Denemeler (Exam Records) Altyapısı
 
 Durum: YAPILACAK
 
 Amaç
 
-Deneme kayıtlarını track-aware şekilde eklemek ve yönetmek
+Uygulamaya “Deneme” kavramını eklemek:
 
-Denemeyi günlük kayıt ekranından hızlıca girmek
+Öğrenci aynı gün birden fazla deneme kaydı girebilsin
 
-Denemeleri ayrı store’da tutmak
+Denemeler aktif track’e bağlı olsun
 
-Deneme geçmişini ayrı ekranda listeleyip düzenleyebilmek
+Deneme süreleri günlük toplam süreye UI seviyesinde eklensin
 
-Koça bağlıyken son 30 gün denemelerini Supabase’e sync etmek
+Denemeler koça senkronize edilsin
 
-Deneme süresini günün toplam süresine otomatik eklemek
+Geçmiş denemeler düzenlenip silinebilsin
 
-Net Kararlar (Bağlayıcı)
-Giriş Noktası
+Bu ticket yalnızca altyapıyı ve temel akışları kapsar.
+Filtreleme ve gelişmiş listeleme T2.8’de ele alınacak.
 
-Deneme girişi DayEntrySheet içinde yapılır.
+TEMEL PRENSİPLER
+1) Denemeler bağımsız domain
 
-Aynı gün birden fazla deneme girilebilir.
+DailyRecord içine gömülmez
 
-Denemenin tarihi:
+Kendi store’u vardır: exams.tsx
 
-Hangi gün düzenleniyorsa o günün denemesidir
+Kendi storage katmanı vardır: examsStorage.ts
 
-Ayrı tarih seçimi yoktur
+2) Günlük kayıtla ilişki – ama bağımsız veri
 
-Track Davranışı
+Deneme girişleri günlük kayıt ekranı içinden yapılır
 
-Denemeler track bazlıdır
+Ancak verisel olarak günlük kayıttan bağımsız tutulur
 
-Öğrenci yalnızca aktif track’in denemelerini görür
+3) Süre Hesaplama (Net Karar)
 
-Track değişince:
+❗ Deneme süreleri DailyRecord.focusMinutes alanını ASLA değiştirmez.
 
-Başka track’in denemeleri görünmez (ama silinmez)
+Toplam süre yalnızca UI’da hesaplanır:
 
-Yeni girilen denemeler yeni track’e yazılır
+totalMinutes =
+  dailyRecord.focusMinutes +
+  sum(examsForThatDay.map(e => e.durationMinutes ?? 0))
 
-Süre (Duration) Kuralı
 
-Deneme ekranında durationMinutes alanı olacak
+Bu sayede:
 
-Kullanıcı deneme süresi girerse:
+Deneme silme/düzenleme veri tutarlılığını bozmaz
 
-Kural:
+Sync tarafı sade kalır
 
-Bu süre, otomatik olarak o günün focus_minutes alanına eklenir
+“Çift hesaplama” hatası oluşmaz
 
-UI’da açıkça:
+4) Net Hesaplama (Track’e Göre)
 
-🟢 “Deneme süresi toplam süreye eklendi”
+Net hesaplama yalnızca UI’da yapılır, veritabanına yazılmaz.
 
-badge’i gösterilir.
+Track	Kural
+LGS7 / LGS8	3 yanlış 1 doğruyu götürür
+TYT / AYT	4 yanlış 1 doğruyu götürür
+function calculateNet(trackId, correct, wrong) {
+  const divisor = trackId.startsWith("LGS") ? 3 : 4
+  return correct - wrong / divisor
+}
 
-Geçmiş Ekranı
 
-Ayrı bir Deneme Geçmişim ekranı olacak
+Ondalık gösterim UI tercihi: toFixed(2)
 
-Bu ekranda:
+VERİ MODELİ
+ExamRecord (Local Model)
+type ExamType = 'FULL' | 'BRANCH'
 
-Aktif track’in tüm denemeleri listelenir
-
-Eski denemeler düzenlenebilir
-
-Denemeler silinebilir
-
-Düzenleme ekranı:
-
-DayEntrySheet içindeki deneme edit UI’ının aynısıdır
-
-Yani kullanıcı günlük kayıt düzenler gibi deneme düzenler
-
-Sync Kuralları
-
-Sync davranışı daily_records ile tamamen aynı:
-
-Kullanıcı login olmuşsa
-
-Koça bağlıysa
-
-Ve kayıt son 30 güne aitse
-→ Supabase’e sync edilir
-
-Koç Davranışı
-
-Denemeler koça da gönderilir
-
-Koç panelinde:
-
-Öğrencinin denemelerini görebilir
-
-Varsayılan filtre: öğrencinin aktif track’i
-
-(Koç tarafında track seçimi ileride ayrı ticket)
-
-Veri Modeli
-Local Model – ExamRecord
 type ExamRecord = {
-  id: string
+  id: string            // uuid
   trackId: TrackId
-  date: string        // YYYY-MM-DD
-  type: 'FULL' | 'BRANCH'
-  subjectKey?: string
-  durationMinutes?: number
+  date: string          // YYYY-MM-DD
+  type: ExamType
+
+  subjectKey?: string   // sadece BRANCH için
 
   correct?: number
   wrong?: number
   blank?: number
 
-  createdAt: number
-  updatedAt: number
+  durationMinutes?: number
+
+  isDeleted: boolean
+  deletedAtMs?: number | null
+
+  createdAtMs: number
+  updatedAtMs: number
 }
 
+SİLME MANTIĞI (TOMBSTONE)
+Çok Önemli Karar
 
-Önemli:
+Hard delete yok
 
-Denemeler DailyRecord içine gömülmez
+Silme = tombstone
 
-Tamamen ayrı bir store’da tutulur
+Silme işlemi:
+isDeleted = true
+deletedAtMs = now
+updatedAtMs = now
 
-Local Storage Tasarımı
-Yeni Dosyalar
-ritim/state/exams.tsx
-ritim/lib/storage/examsStorage.ts
-ritim/lib/exam/types.ts
+UI davranışı
 
-Storage Key
-ritim.exams.v1
+Varsayılan listeler: !isDeleted filtreli gösterilir
 
-Helper API
+Silinen deneme görünmez
 
-upsertExam(exam: ExamRecord)
+Sync sırasında silme bilgisi de cloud’a gider
 
-deleteExam(examId: string)
+Geri alma (opsiyonel)
 
-listExamsByTrack(trackId)
+Snackbar “Geri al” ile aynı UUID revive edilebilir
 
-listExamsByTrackAndDate(trackId, date)
+Bu overwrite değil, undelete olur
 
-listExamsForLast30Days(trackId)
+Yeniden ekleme
 
-Supabase Tarafı
+Silinen denemeyi “yeniden eklemek” = yeni UUID ile yeni kayıt
+
+SUPABASE TARAFI
 Yeni Tablo: exam_records
-
-Kolonlar:
-
-column	type
-id	uuid (pk)
-user_id	uuid
-track_id	text
-date	text
-type	text
-subject_key	text
-duration_minutes	int
-correct	int
-wrong	int
-blank	int
-updated_at	timestamp
-Sync Conflict Key
-UNIQUE(user_id, id)
-
-Index
-(user_id, track_id, date desc)
-
-UI / UX
-1) DayEntrySheet Güncellemeleri
-
-Yeni bölüm:
-
-DENEME
-
-Liste (0..n)
-
-Her item:
-
-FULL veya BRANCH + ders adı
-
-Sağda küçük sil ikonu
-
-Altında:
-
-[ + Deneme Ekle ]
-
-Deneme Ekle Formu
 
 Alanlar:
 
-Tür: FULL / BRANCH
+id (uuid, PK)
 
-(BRANCH ise) Ders seçimi
+user_id (fk → profiles)
+
+track_id (text)
+
+date (date)
+
+type (text)
+
+subject_key (text, nullable)
+
+correct (int, nullable)
+
+wrong (int, nullable)
+
+blank (int, nullable)
+
+duration_minutes (int, nullable)
+
+is_deleted (boolean)
+
+deleted_at (timestamptz, nullable)
+
+created_at (timestamptz)
+
+updated_at (timestamptz)
+
+Index
+CREATE INDEX ON exam_records (user_id, track_id, date DESC);
+
+Unique
+
+PK: id yeterli
+
+Composite unique gerekli değil
+
+SYNC DAVRANIŞI
+
+Denemeler için sync kuralı, günlük kayıtlarla birebir aynıdır:
+
+Push
+
+Her local değişiklik → upsert
+
+Initial Pull
+
+Koça bağlanıldığında: son 30 gün denemeler çekilir
+
+Delete Sync
+
+Silme de upsert olarak gider (is_deleted=true)
+
+Hard delete API yok
+
+STORAGE KATMANI
+
+Dosya: ritim/lib/storage/examsStorage.ts
+
+AsyncStorage key: ritim.exams.v1
+
+Format:
+
+Record<string, ExamRecord>
+
+STATE KATMANI
+
+Dosya: ritim/state/exams.tsx
+
+Fonksiyonlar:
+
+addExam(exam)
+
+updateExam(exam)
+
+removeExam(id) → tombstone
+
+getExamsForDate(trackId, date)
+
+getExamsForTrack(trackId)
+
+UI AKIŞLARI
+1) Günlük Kayıt Ekranı (DayEntrySheet)
+Yeni bölüm: DENEMELER
+DENEMELER
+-------------------------
++ Deneme Ekle
+
+- TYT Full (80 dk)
+- Matematik Branş (40 dk)
+
+
+Her satırda:
+
+Düzenle ikonu
+
+Sil ikonu
+
+Deneme Ekle / Düzenle Formu
+
+Alanlar:
+
+Deneme Türü
+
+FULL
+
+BRANCH → ders seçimi açılır
 
 Süre (dakika)
 
-Doğru / Yanlış / Boş (opsiyonel)
+Doğru
 
-Kaydedince:
+Yanlış
 
-ExamRecord store’a yazılır
+Boş
 
-Eğer süre girildiyse:
+Süre Badge’i
 
-Günün focus_minutes’ine eklenir
-
-Badge görünür:
+Deneme kaydedildiğinde günlük ekranda:
 
 🟢 “Deneme süresi toplam süreye eklendi”
 
-2) Yeni Ekran: “Deneme Geçmişim”
+2) Geçmiş Gün Düzenleme
 
-Amaç:
+Günler ekranından eski bir güne girildiğinde
 
-Aktif track’in tüm denemelerini görmek ve düzenlemek
+O güne ait denemeler listelenir
+
+Düzenlenebilir / silinebilir
+
+3) Deneme Geçmişi Ekranı (MVP)
+
+Yeni route:
+
+/exams
 
 Özellikler:
 
-Liste:
+Sadece aktif track’in denemeleri
 
 Tarihe göre sıralı
 
-Kart görünümü
+Tıklanınca düzenleme bottomsheet’i
 
-Kart içinde:
+Filtreleme detayları T2.8’de
 
-Tarih
+TRACK DAVRANIŞI
+Görünürlük Kuralı
 
-Tür
+Kullanıcı hangi track’teyse yalnızca o track’in denemeleri görünür
 
-Ders
+Örnek:
 
-Süre
+Bugün TYT denemesi girdi
 
-Doğru/Yanlış/Boş
+Sonra AYT track’ine geçti
 
-Aksiyonlar:
+→ TYT denemeleri görünmez
+(ama veride durur)
 
-Düzenle → aynı bottomsheet
+Bu davranış: ONAYLANDI
 
-Sil
+DOSYA LİSTESİ
+Yeni
 
-Filtre:
-
-Ek filtre UI yok (aktif track otomatik filtre)
-
-Kod Entegrasyon Noktaları
-Etkilenecek Dosyalar
-
-DayEntrySheet.tsx
-
-HomeScreen.tsx (badge gösterimi)
-
-ritim/state/exams.tsx
+ritim/types/exam.ts
 
 ritim/lib/storage/examsStorage.ts
 
-ritim/lib/supabase/sync.ts
+ritim/state/exams.tsx
 
-SettingsScreen.tsx (gerekirse navigation)
+ritim/screens/ExamsScreen.tsx
 
-Yeni: ExamHistoryScreen.tsx
+Güncellenecek
 
-Acceptance (Done Kriterleri)
+DayEntrySheet.tsx
 
- DayEntrySheet içinde “Deneme” bölümü var
+sync.ts
 
- Aynı güne birden fazla deneme eklenebiliyor
+_layout.tsx (provider ekleme)
 
- Deneme silinebiliyor
+navigation routes
 
- Deneme süresi girilince günün toplam süresine ekleniyor
+DONE KRİTERLERİ
 
- “Toplam süreye eklendi” badge’i görünüyor
+ Deneme eklenebiliyor
 
- Track değişince farklı track denemeleri görünmüyor
+ Aynı güne birden fazla deneme girilebiliyor
 
- Deneme Geçmişim ekranı var
+ Düzenleme / silme çalışıyor
 
- Geçmişteki denemeler düzenlenebiliyor
+ Toplam süre UI’da doğru hesaplanıyor
 
- Local storage kalıcı çalışıyor
+ Süre badge’i görünüyor
 
- Login + koç bağlı + last 30 days koşulunda Supabase’e sync oluyor
+ Track bazlı filtreleme doğru
 
-Test Senaryoları
+ Koça senkronize oluyor
 
-LGS7’de bugüne FULL deneme ekle → listede gör
+ Geçmiş günlerde düzenlenebiliyor
 
-Aynı güne BRANCH(Mat) ekle → ikisi de gör
+ Net hesaplaması doğru
 
-Süre gir → toplam süre artmış olsun + badge gör
+ TYT/AYT 4 yanlış, LGS 3 yanlış kuralı doğru
 
-Deneme sil → sadece o silinsin
+ Silme tombstone ile çalışıyor
 
-Track’i LGS8 yap → LGS7 denemeleri görünmesin
+TEST SENARYOLARI
 
-Geçmiş ekranında denemeyi aç → düzenle → kaydet
+LGS7’de FULL deneme ekle
 
-İnternetsiz ekle → online olunca sync olsun
+Aynı güne ikinci deneme ekle
 
-Koça bağlı hesapta denemeler cloud’a düşsün
+Süre gir → toplam süre doğru hesaplanıyor
+
+Deneme sil → listeden kayboluyor
+
+Track değiştir → diğer track’in denemeleri görünmüyor
+
+Geri dön → önceki track denemeleri duruyor
+
+Koça bağlıyken sync oluyor
+
+Net hesabı doğru
 
 Kapsam Dışı
 
-Koç paneli UI (T2.10)
+Gelişmiş filtreler
 
-Denemeler için gelişmiş filtreleme
+Grafik/istatistik
 
-TYT/AYT konuları
+TYT/AYT konu içerikleri
 
-Analytics / rapor ekranı
+Koç paneli detay ekranı
+
+(Bunlar T2.8 – T2.10)

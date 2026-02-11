@@ -2,6 +2,7 @@ import React from 'react';
 import { Stack } from 'expo-router';
 
 import { AuthProvider } from '@/state/auth';
+import { ExamsProvider } from '@/state/exams';
 import { OnboardingProvider } from '@/state/onboarding';
 import { RecordsProvider } from '@/state/records';
 import { SettingsProvider, useSettings } from '@/state/settings';
@@ -13,7 +14,8 @@ export default function RootLayout() {
       <OnboardingProvider>
         <SettingsProvider>
           <RecordsProvider>
-            <TopicsProviderBridge>
+            <ExamsProvider>
+              <TopicsProviderBridge>
               <Stack initialRouteName="onboarding-1" screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="onboarding-1" />
                 <Stack.Screen name="onboarding-2" />
@@ -24,8 +26,10 @@ export default function RootLayout() {
                 <Stack.Screen name="playground" />
                 <Stack.Screen name="settings" />
                 <Stack.Screen name="coach-connect" />
+                <Stack.Screen name="exams" />
               </Stack>
-            </TopicsProviderBridge>
+              </TopicsProviderBridge>
+            </ExamsProvider>
           </RecordsProvider>
         </SettingsProvider>
       </OnboardingProvider>

@@ -14,6 +14,7 @@ import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { TrackId } from '@/lib/track/tracks';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
+import { useExams } from '@/state/exams';
 import { useOnboarding } from '@/state/onboarding';
 import {
   ActivityType,
@@ -40,6 +41,7 @@ export function HomeScreen() {
   const openConfirmAfterCloseRef = useRef(false);
 
   const today = todayKey;
+  const { getExamsForDate } = useExams();
   const activeTrack = settings.activeTrack;
   const todayRecord = activeTrack ? selectTodayRecord(activeTrack, todayKey) : undefined;
   const weekDots = useMemo(
@@ -247,6 +249,20 @@ export function HomeScreen() {
             </View>
             <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
           </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/exams')}
+            style={({ pressed }) => [
+              styles.navRow,
+              pressed ? styles.navRowPressed : null,
+            ]}
+          >
+            <View>
+              <Text style={styles.navTitle}>Denemeler</Text>
+              <Text style={styles.navSubtitle}>Deneme geçmişini gör</Text>
+            </View>
+            <IconSymbol name="chevron.right" size={16} color={colors.iconMuted} />
+          </Pressable>
           {showCoachConnect ? (
             <Pressable
               accessibilityRole="button"
@@ -271,6 +287,7 @@ export function HomeScreen() {
         onClose={() => setSheetVisible(false)}
         onCloseComplete={handleSheetCloseComplete}
         title={todayRecord ? 'Bugün' : 'Odak Girişi'}
+        date={today}
         trackId={todayRecord?.trackId ?? activeTrack}
         onSave={handleSave}
         initialValues={todayRecord}
@@ -280,7 +297,13 @@ export function HomeScreen() {
       <ConfirmDialog
         visible={confirmVisible}
         title="Kaydı sil?"
-        message="Bu günün kaydı tamamen silinecek."
+        message={(() => {
+          const base = 'Bu günün kaydı tamamen silinecek.';
+          if (!pendingDeleteRef.current) return base;
+          const exams = getExamsForDate(pendingDeleteRef.current.trackId, pendingDeleteRef.current.date);
+          if (exams.length === 0) return base;
+          return `${base}\n\nBu güne ait ${exams.length} deneme silinmeyecek, Denemeler ekranından yönetebilirsiniz.`;
+        })()}
         confirmLabel="Sil"
         cancelLabel="Vazgeç"
         onCancel={() => {

@@ -8,6 +8,7 @@ import { IconButton } from '@/components/IconButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
+import { useExams } from '@/state/exams';
 import { getWeekDates, getWeekStartKey, parseDateKey, useRecords } from '@/state/records';
 import { useSettings } from '@/state/settings';
 
@@ -32,6 +33,7 @@ export function DaysScreen() {
   const router = useRouter();
   const { settings } = useSettings();
   const { getRecord, getWeekDots, getTrackRange, selectHasAnyRecords, todayKey } = useRecords();
+  const { getExamDurationForDate } = useExams();
   const activeTrack = settings.activeTrack;
   const hasAnyRecords = activeTrack ? selectHasAnyRecords(activeTrack) : false;
   const trackRange = useMemo(
@@ -88,11 +90,11 @@ export function DaysScreen() {
 
       for (const date of dates) {
         const record = getRecord(activeTrack, date);
-        if (!record) {
-          continue;
+        if (record) {
+          totalMinutes += record.focusMinutes;
+          totalQuestions += getQuestionTotal(record);
         }
-        totalMinutes += record.focusMinutes;
-        totalQuestions += getQuestionTotal(record);
+        totalMinutes += getExamDurationForDate(activeTrack, date);
       }
 
       return {
@@ -104,7 +106,7 @@ export function DaysScreen() {
         totalQuestions,
       };
     });
-  }, [activeTrack, getRecord, getWeekDots, hasAnyRecords, todayKey, weekCount]);
+  }, [activeTrack, getRecord, getExamDurationForDate, getWeekDots, hasAnyRecords, todayKey, weekCount]);
 
   const navigateToWeek = (weekStart: string) => {
     router.push({ pathname: '/week/[weekStart]', params: { weekStart } });

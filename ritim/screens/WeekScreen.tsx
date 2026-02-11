@@ -10,6 +10,7 @@ import { IconButton } from '@/components/IconButton';
 import { SurfaceCard } from '@/components/SurfaceCard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { colors, radius, spacing } from '@/lib/theme/tokens';
+import { useExams } from '@/state/exams';
 import { ActivityType, DailyRecord, getWeekDates, useRecords } from '@/state/records';
 import { useSettings } from '@/state/settings';
 import type { TrackId } from '@/lib/track/tracks';
@@ -34,6 +35,7 @@ export function WeekScreen() {
   const { weekStart } = useLocalSearchParams<{ weekStart?: string }>();
   const { settings } = useSettings();
   const { getWeekDots, getRecord, upsertRecord, removeRecord, todayKey } = useRecords();
+  const { getExamDurationForDate, getExamsForDate } = useExams();
   const [editVisible, setEditVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -90,9 +92,12 @@ export function WeekScreen() {
         totalMinutes += row.record.focusMinutes;
         totalQuestions += getQuestionTotal(row.record);
       }
+      if (activeTrack) {
+        totalMinutes += getExamDurationForDate(activeTrack, row.date);
+      }
     }
     return { totalMinutes, totalQuestions, filledCount };
-  }, [rows]);
+  }, [rows, activeTrack, getExamDurationForDate]);
 
   const selectedRecord = selectedDate && activeTrack ? getRecord(activeTrack, selectedDate) : undefined;
 
@@ -283,6 +288,7 @@ export function WeekScreen() {
         }}
         onCloseComplete={handleSheetCloseComplete}
         title={detailTitle || 'Gün'}
+        date={selectedDate ?? undefined}
         trackId={selectedRecord?.trackId ?? activeTrack}
         onSave={handleSave}
         initialValues={selectedRecord}
@@ -292,7 +298,13 @@ export function WeekScreen() {
       <ConfirmDialog
         visible={confirmVisible}
         title="Kaydı sil?"
-        message="Bu günün kaydı tamamen silinecek."
+        message={(() => {
+          const base = 'Bu günün kaydı tamamen silinecek.';
+          if (!pendingDeleteRef.current) return base;
+          const exams = getExamsForDate(pendingDeleteRef.current.trackId, pendingDeleteRef.current.date);
+          if (exams.length === 0) return base;
+          return `${base}\n\nBu güne ait ${exams.length} deneme silinmeyecek, Denemeler ekranından yönetebilirsiniz.`;
+        })()}
         confirmLabel="Sil"
         cancelLabel="Vazgeç"
         onCancel={() => {
